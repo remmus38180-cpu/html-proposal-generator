@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>提案資料產製邏輯</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;600&family=Noto+Sans+TC:wght@300;400;500;700&display=swap">
+</head>
+<body>
+<style>
+:root{
+  --ground:#f1f1ef;
+  --layer-1:#ffffff;
+  --layer-2:#f8f8f6;
+  --ink:#17171a;
+  --ink-2:#585860;
+  --ink-3:#8b8b93;
+  --line:#e1e1de;
+  --line-hard:#17171a;
+  --accent:#0f62fe;
+  --accent-wash:#e9f0ff;
+  --warn:#8a6300;
+  --warn-wash:#fdf4dd;
+  --ok:#146c39;
+  --ok-wash:#e7f4eb;
+  --code-bg:#ececea;
+  --sans:'Noto Sans TC','IBM Plex Sans','Helvetica Neue',Arial,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#101013;
+    --layer-1:#1a1a20;
+    --layer-2:#16161b;
+    --ink:#e9e9ec;
+    --ink-2:#a2a2ac;
+    --ink-3:#71717c;
+    --line:#2d2d35;
+    --line-hard:#e9e9ec;
+    --accent:#78a9ff;
+    --accent-wash:#16233d;
+    --warn:#f1c21b;
+    --warn-wash:#2e2508;
+    --ok:#42be65;
+    --ok-wash:#0f2a1a;
+    --code-bg:#25252d;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101013;
+  --layer-1:#1a1a20;
+  --layer-2:#16161b;
+  --ink:#e9e9ec;
+  --ink-2:#a2a2ac;
+  --ink-3:#71717c;
+  --line:#2d2d35;
+  --line-hard:#e9e9ec;
+  --accent:#78a9ff;
+  --accent-wash:#16233d;
+  --warn:#f1c21b;
+  --warn-wash:#2e2508;
+  --ok:#42be65;
+  --ok-wash:#0f2a1a;
+  --code-bg:#25252d;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--sans);
+  background:var(--ground);
+  color:var(--ink);
+  font-size:14px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+nav{background:var(--line-hard);color:var(--ground);display:flex;align-items:center;padding:0 1.25rem;height:46px;gap:.7rem}
+nav .dot{width:8px;height:8px;background:var(--accent);flex:none}
+nav b{font-size:13.5px;font-weight:600;letter-spacing:.01em}
+nav .ver{margin-left:auto;font-family:var(--mono);font-size:11px;opacity:.7}
+
+.hero{background:var(--layer-1);padding:2.4rem 1.25rem 0;border-bottom:1px solid var(--line-hard)}
+.hero-in{max-width:940px}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.12em;color:var(--ink-2)}
+.hero h1{margin-top:.7rem;font-size:clamp(1.75rem,5vw,2.35rem);font-weight:300;line-height:1.15;letter-spacing:-.02em;text-wrap:balance}
+.hero h1 strong{font-weight:700}
+.hero p{margin-top:.9rem;font-size:13.5px;font-weight:300;color:var(--ink-2);max-width:64ch;line-height:1.8}
+
+.legend{max-width:940px;margin:1.6rem 0 0;border-top:1px solid var(--line);padding:.9rem 0 1.3rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.55rem 1.4rem}
+.lg{display:flex;align-items:center;gap:.6rem;font-size:11.5px;color:var(--ink-2);line-height:1.5}
+.lg svg{flex:none}
+.lg b{font-weight:600;color:var(--ink)}
+
+.tabs{display:flex;overflow-x:auto;background:var(--layer-1);border-bottom:1px solid var(--line-hard);-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:5}
+.tab{flex-shrink:0;font-family:inherit;font-size:13.5px;font-weight:400;padding:.85rem 1.2rem;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--ink-2);cursor:pointer}
+.tab:hover{background:var(--layer-2);color:var(--ink)}
+.tab.active{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+.panel{display:none}
+.panel.active{display:block}
+.content{padding:2rem 1.25rem 4rem;max-width:940px;background:var(--layer-1);min-height:60vh}
+
+.section-head{display:flex;align-items:baseline;gap:1rem;margin:2.6rem 0 1rem;padding-bottom:.5rem;border-bottom:1px solid var(--line-hard)}
+.section-head:first-child{margin-top:0}
+.section-head h2{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+.section-head .meta{font-size:11px;font-weight:400;color:var(--ink-2);margin-left:auto;font-family:var(--mono);text-align:right}
+
+.prose{font-size:13.5px;font-weight:300;line-height:1.85;max-width:66ch;margin-bottom:.9rem}
+.prose strong{font-weight:600}
+
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:1rem;border-bottom:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;min-width:480px}
+th{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--ink-2);padding:.55rem .75rem;text-align:left;border-bottom:1px solid var(--line-hard);white-space:nowrap;background:var(--layer-1)}
+td{padding:.6rem .75rem;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px;font-weight:300;line-height:1.65;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+td.k{font-weight:500;white-space:nowrap}
+tr.hl td{background:var(--accent-wash)}
+td .tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.04em;padding:.1rem .4rem;background:var(--accent);color:var(--layer-1);vertical-align:.08em;margin-left:.35rem}
+
+code{font-family:var(--mono);font-size:.86em;background:var(--code-bg);padding:.1em .35em}
+td code,.callout code{background:transparent;padding:0}
+td code{color:var(--ink-2)}
+
+.callout{background:var(--accent-wash);border-left:3px solid var(--accent);padding:.9rem 1.15rem;margin:1.25rem 0;font-size:13px;font-weight:300;line-height:1.8}
+.callout strong{font-weight:600}
+.callout code{color:var(--accent)}
+.callout.warn{background:var(--warn-wash);border-left-color:var(--warn)}
+.callout.warn code{color:var(--warn)}
+
+pre{font-family:var(--mono);font-size:12.5px;background:var(--layer-2);color:var(--ink);border:1px solid var(--line);border-left:3px solid var(--ink-3);padding:1rem 1.15rem;overflow-x:auto;line-height:1.75;margin-bottom:1rem}
+pre .c{color:var(--ink-3);font-style:italic}
+pre .k{color:var(--accent)}
+pre .s{color:var(--warn)}
+.pre-label{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--ink-2);margin:1.4rem 0 .35rem}
+
+figure{margin:1.4rem 0 1.7rem;border:1px solid var(--line);background:var(--layer-2);padding:1rem 1rem .8rem}
+figure svg{display:block;width:100%;height:auto;color:var(--ink)}
+figcaption{margin-top:.75rem;border-top:1px solid var(--line);padding-top:.6rem;font-size:11.5px;font-weight:300;color:var(--ink-2);line-height:1.75}
+figcaption b{font-weight:600;color:var(--ink)}
+
+.s-box{fill:var(--layer-1);stroke:currentColor;stroke-width:1.2}
+.s-box-d{fill:none;stroke:currentColor;stroke-width:1.2;stroke-dasharray:5 4;opacity:.5}
+.s-box-a{fill:var(--accent-wash);stroke:var(--accent);stroke-width:1.5}
+.s-box-w{fill:var(--warn-wash);stroke:var(--warn);stroke-width:1.5}
+.s-box-g{fill:none;stroke:currentColor;stroke-width:1;stroke-dasharray:3 4;opacity:.35}
+.s-fill{fill:var(--layer-2)}
+.s-t{fill:currentColor;font-family:var(--sans);font-size:12.5px;font-weight:500}
+.s-ts{fill:var(--ink-2);font-family:var(--sans);font-size:11px;font-weight:300}
+.s-tm{fill:currentColor;font-family:var(--mono);font-size:11.5px}
+.s-tms{fill:var(--ink-2);font-family:var(--mono);font-size:10.5px}
+.s-lbl{fill:var(--ink-2);font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.1em}
+.s-acc{fill:var(--accent)}
+.s-warn{fill:var(--warn)}
+.s-mute{fill:var(--ink-3)}
+.s-line{stroke:currentColor;stroke-width:1.2;fill:none}
+.s-line-d{stroke:currentColor;stroke-width:1.2;fill:none;stroke-dasharray:5 4;opacity:.5}
+.s-line-a{stroke:var(--accent);stroke-width:1.5;fill:none}
+.s-line-w{stroke:var(--warn);stroke-width:1.5;fill:none}
+.m-a{fill:currentColor}
+.m-d{fill:currentColor;opacity:.5}
+.m-c{fill:var(--accent)}
+.m-w{fill:var(--warn)}
+
+.chg{display:grid;grid-template-columns:auto 1fr;gap:.5rem 1rem;margin:1rem 0 1.5rem;font-size:13px;font-weight:300;line-height:1.7}
+.chg dt{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--accent);padding-top:.2rem;white-space:nowrap}
+.chg dd{border-bottom:1px solid var(--line);padding-bottom:.5rem}
+.chg dd:last-child{border-bottom:none}
+
+.steps{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:.55rem;margin:.75rem 0 1.25rem}
+.steps li{counter-increment:s;position:relative;padding-left:1.9rem;font-size:13px;font-weight:300;line-height:1.8;max-width:66ch}
+.steps li strong{font-weight:600}
+.steps li::before{content:counter(s);position:absolute;left:0;top:.3em;width:19px;height:19px;background:var(--accent);color:var(--layer-1);font-size:10.5px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+
+.foot{max-width:940px;padding:1.4rem 1.25rem 3rem;font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.8}
+@media (max-width:640px){.content{padding:1.5rem 1rem 3rem}}
+</style>
+
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-a"/></marker>
+    <marker id="ahd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-d"/></marker>
+    <marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-c"/></marker>
+    <marker id="ahw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="m-w"/></marker>
+  </defs>
+</svg>
+
+<nav><span class="dot"></span><b>藥品支付價提案　資料產製邏輯</b><span class="ver">2026-08</span></nav>
+
+<div class="hero">
+  <div class="hero-in">
+    <div class="eyebrow">資料來源與計算規則說明</div>
+    <h1><strong>提案資料</strong>是怎麼算出來的</h1>
+    <p>工具讀入兩份 Excel，經一層共用的資料整備，產出一份提案 Word、一份四分頁 Excel 與一份提案附件 Excel。本頁逐表說明每個欄位的來源、篩選條件、排序規則與計算公式，供核對之用。核價公式與各項統計規則均依支付標準條文訂定，並與既有試算程式逐步對拍確認一致。</p>
+
+    <div class="legend">
+      <div class="lg"><svg width="34" height="16" viewBox="0 0 34 16" role="img" aria-label="實線"><rect x="1" y="2" width="32" height="12" class="s-box"/></svg><span><b>實線</b>　納入計算／會列出</span></div>
+      <div class="lg"><svg width="34" height="16" viewBox="0 0 34 16" role="img" aria-label="虛線"><rect x="1" y="2" width="32" height="12" class="s-box-d"/></svg><span><b>虛線</b>　排除／歸零／不列出</span></div>
+      <div class="lg"><svg width="34" height="16" viewBox="0 0 34 16" role="img" aria-label="藍框"><rect x="1" y="2" width="32" height="12" class="s-box-a"/></svg><span><b>藍</b>　本案藥品或本次重點</span></div>
+      <div class="lg"><svg width="34" height="16" viewBox="0 0 34 16" role="img" aria-label="琥珀框"><rect x="1" y="2" width="32" height="12" class="s-box-w"/></svg><span><b>琥珀</b>　需注意的例外情形</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="sw(0)">總覽</button>
+  <button class="tab" onclick="sw(1)">共用規則</button>
+  <button class="tab" onclick="sw(2)">提案 Word</button>
+  <button class="tab" onclick="sw(3)">Excel 報表</button>
+  <button class="tab" onclick="sw(4)">注意事項</button>
+</div>
+
+<!-- ══════════ 總覽 ══════════ -->
+<div class="panel active" id="p0"><div class="content">
+
+  <div class="section-head"><h2>資料流程</h2></div>
+
+  <figure>
+    <svg viewBox="0 0 880 252" role="img" aria-label="兩份 Excel 進入一層共用整備，整備結果同時餵給提案 Word、四分頁 Excel 與提案附件 Excel">
+      <rect x="262" y="14" width="300" height="224" class="s-box-g"/>
+      <text x="412" y="8" text-anchor="middle" class="s-lbl">共用整備 · 讀檔後只跑一次</text>
+
+      <rect x="16" y="36" width="190" height="60" class="s-box"/>
+      <text x="30" y="60" class="s-lbl">INPUT 1</text>
+      <text x="30" y="80" class="s-t">藥品主檔</text>
+
+      <rect x="16" y="152" width="190" height="60" class="s-box"/>
+      <text x="30" y="176" class="s-lbl">INPUT 2</text>
+      <text x="30" y="196" class="s-t">案件需求檔</text>
+
+      <line x1="206" y1="66" x2="256" y2="66" class="s-line" marker-end="url(#ah)"/>
+      <text x="231" y="58" text-anchor="middle" class="s-tms">全量</text>
+      <line x1="206" y1="182" x2="256" y2="182" class="s-line" marker-end="url(#ah)"/>
+      <text x="231" y="174" text-anchor="middle" class="s-tms">本案 n 列</text>
+
+      <rect x="282" y="34" width="260" height="52" class="s-box s-fill"/>
+      <text x="296" y="56" class="s-t">① 年度視窗　+　0 元年度歸零</text>
+      <text x="296" y="74" class="s-ts">決定近三年是哪三年；取消給付者逐年歸零</text>
+
+      <rect x="282" y="100" width="260" height="52" class="s-box s-fill"/>
+      <text x="296" y="122" class="s-t">② 分組層彙總</text>
+      <text x="296" y="140" class="s-ts">金額／數量、支付價區間、項目數、平均申報量</text>
+
+      <rect x="282" y="166" width="260" height="52" class="s-box s-fill"/>
+      <text x="296" y="188" class="s-t">③ 級距判定　+　核價試算</text>
+      <text x="296" y="206" class="s-ts">每月申報金額 → 加成率 → 第 40 條進位</text>
+
+      <line x1="412" y1="86" x2="412" y2="98" class="s-line" marker-end="url(#ah)"/>
+      <line x1="412" y1="152" x2="412" y2="164" class="s-line" marker-end="url(#ah)"/>
+
+      <polyline points="562,126 592,126 592,44 614,44" class="s-line" marker-end="url(#ah)"/>
+      <line x1="592" y1="126" x2="614" y2="126" class="s-line" marker-end="url(#ah)"/>
+      <polyline points="592,126 592,208 614,208" class="s-line" marker-end="url(#ah)"/>
+      <text x="588" y="118" text-anchor="end" class="s-tms">同一份結果</text>
+
+      <rect x="618" y="18" width="246" height="52" class="s-box"/>
+      <text x="632" y="38" class="s-lbl">OUTPUT A</text>
+      <text x="632" y="58" class="s-t">提案 Word（一案一份）</text>
+
+      <rect x="618" y="100" width="246" height="52" class="s-box"/>
+      <text x="632" y="120" class="s-lbl">OUTPUT B</text>
+      <text x="632" y="140" class="s-t">四分頁 Excel（核價／統計／明細）</text>
+
+      <rect x="618" y="182" width="246" height="52" class="s-box"/>
+      <text x="632" y="202" class="s-lbl">OUTPUT C</text>
+      <text x="632" y="222" class="s-t">提案附件 Excel（6 分頁）</text>
+    </svg>
+    <figcaption><b>三份輸出取用同一份整備結果，因此數字必然一致。</b>整備只在讀檔後跑一次，之後 Word 與兩份 Excel 都不再各自重算。全部運算在承辦人自己的瀏覽器內完成，資料不上傳、不外送，也不需要連外網路。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>本次更新</h2><span class="meta">2026-08（第 17 次改版）</span></div>
+  <dl class="chg">
+    <dt>需求檔預設</dt><dd><code>ATC_MODE</code> <strong>預設值改為 <code>BOTH</code></strong>：留空或填入無法辨識的值，一律視為 BOTH，表二固定產生「同 ATC7 碼」與「同 ATC 前 5 碼」兩張表。</dd>
+    <dt>提案附件 Excel</dt><dd>新增一份<strong>提案附件 Excel</strong>（版面依「專家提案附件」規格，<strong>要產出哪幾張分頁由介面步驟 04 勾選</strong>）：於 ATC7 碼右方增列「<strong>ATC 名稱</strong>」欄，灰底列為各分組小計，排序同四分頁報表的分頁 3，A4 <strong>橫向</strong>、寬度縮至一頁、凍結並重複前 3 列標題。<code>分組代碼</code>置於 A 欄供同仁審查，但<strong>不在列印範圍內</strong>。<br>分頁<strong>固定 6 張</strong>，與 <code>ATC_MODE</code> 無關：<code>同分組</code>／<code>ATC前1碼</code>／<code>ATC前3碼</code>／<code>ATC前4碼</code>／<code>ATC前5碼</code>／<code>ATC7碼</code>。ATC 一律只用來「挑分組」，挑到後該分組的全部項目都納入，因此各分頁的項目數為巢狀包含關係。</dd>
+    <dt>Word 表格</dt><dd>資料列<strong>一律不加粗</strong>，只有「<strong>（本案藥品）</strong>」四字加粗，且改標記在<strong>項次下方</strong>；金額／數量欄名一律帶年度（如「114 年整組申報金額」）；表一刪除「整組每月平均申報金額」欄並把申報量移到最後；編號清單第一層縮排 1 個字元、第二層 1.5 個字元。</dd>
+    <dt>表二 · 同 ATC 5 碼</dt><dd><strong>固定顯示</strong> ATC7 碼與 ATC 名稱兩欄（置於分組名稱右方）；同一分組含多個 ATC7 碼時<strong>分列呈現各自數據</strong>，分組名稱與項次以<strong>合併儲存格</strong>呈現。</dd>
+    <dt>頁碼欄位</dt><dd>說明二（二）（三）（四）、說明五、說明七的三個子項目，均於冒號左方留 <code>(P-)</code> 供承辦人填寫附件頁碼；說明二標題改為「本案藥品健保收載情形說明如下：」，（一）於適應症後加註「ATC7 碼為 {碼} {名稱}」。</dd>
+    <dt>說明六</dt><dd>核價表內「十國藥價中位數<sup>註1</sup>」「參考成本價<sup>註2</sup>」的註記改為<strong>上標</strong>；每張核價表下方加一行備註，帶出該分組的<strong>整組每月平均申報金額</strong>與<strong>近三年平均申報量</strong>數字。表五「十國中位價」欄名改為「<strong>十國藥價中位數</strong>」。</dd>
+    <dt>用語</dt><dd>法規「全民健康保險藥物給付項目及支付標準」已將「品項」全面改為「<strong>項目</strong>」，所有輸出用語一併改用「項目」。</dd>
+    <dt>表一</dt><dd><strong>占率</strong>欄移到「整組申報金額」右邊。</dd>
+    <dt>表二</dt><dd>欄名「分類分組品項數」改為「<strong>項目數</strong>」；現行健保支付價欄<strong>不再顯示 0 元</strong>，暫停支付的項目改於表格下方備註。</dd>
+    <dt>需求檔</dt><dd><code>ATC_MODE</code> 與 <code>領有許可證</code> 改為<strong>下拉選單</strong>；<code>ATC_MODE</code> 新增 <code>BOTH</code>，表二會同時產生「同 ATC7 碼」與「同 ATC 前 5 碼」<strong>兩張表</strong>。範本另附「填表說明」分頁。</dd>
+    <dt>多筆來文</dt><dd>同一個 <code>CODE</code> 可貼成多列、每列一筆來文文號，<strong>第 2 列起其他欄位留白即可</strong>；系統會合併成一項藥品，不會重複產生核價表。</dd>
+    <dt>介面</dt><dd>「下載案件需求檔範本」按鈕移到步驟 01「案件需求檔」上傳欄下方。</dd>
+  </dl>
+
+  <div class="section-head"><h2>輸入一 · 藥品主檔</h2><span class="meta">必要欄位</span></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>欄位</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td class="k"><code>CODE</code></td><td>健保代碼，案件需求檔藉此對應到主檔那一列</td></tr>
+      <tr><td class="k"><code>藥品名稱</code>／<code>藥商名稱</code></td><td>提案文字與各表顯示</td></tr>
+      <tr><td class="k"><code>分組代碼</code>／<code>分組名稱</code></td><td>所有分組層統計的分群依據</td></tr>
+      <tr><td class="k"><code>ATC7碼</code>／<code>ATC名稱</code></td><td>找出同 ATC7 碼相關分組</td></tr>
+      <tr><td class="k"><code>PRICE{年月}</code></td><td>現行支付價。年月由介面指定，例 <code>PRICE11504</code></td></tr>
+      <tr><td class="k"><code>QTY{年}</code>／<code>AMT{年}</code></td><td>各年度申報數量與金額</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="section-head"><h2>輸入一 · 選用欄位</h2><span class="meta">缺漏時退回替代值或印底線</span></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>欄位</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td class="k"><code>收載日期</code></td><td>判定「收載超過／未滿 15 年」，並決定近三年平均要納入哪幾年</td></tr>
+      <tr><td class="k"><code>生效日期</code></td><td>0 元項目的年度歸零判定基準</td></tr>
+      <tr><td class="k"><code>分類</code></td><td>第一／第二／第三A／第三B 大類</td></tr>
+      <tr><td class="k"><code>藥品分類</code>／<code>藥品分類_名稱</code></td><td>原開發廠／學名藥／生物相似性藥品等敘述</td></tr>
+      <tr><td class="k"><code>不良品暫停支付註記</code></td><td>項目數計算（0 元但註記 Y 者仍計入）</td></tr>
+      <tr><td class="k"><code>適應症</code>／<code>劑型</code>／<code>藥價說明</code></td><td>提案敘述與明細表</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="section-head"><h2>輸入二 · 案件需求檔</h2><span class="meta">11 欄　一份檔＝一案　同 CODE 可多列</span></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>欄位</th><th>層級</th><th>說明</th></tr></thead>
+    <tbody>
+      <tr><td class="k"><code>報告人</code></td><td>案件</td><td>取第一個非空值，整案共用</td></tr>
+      <tr><td class="k"><code>CODE</code></td><td>藥品</td><td><strong>必填</strong>，對應主檔。留空的列整列略過；同一個 <code>CODE</code> 可出現多列，會合併成一項藥品</td></tr>
+      <tr class="hl"><td class="k"><code>ATC_MODE</code><span class="tag">下拉</span></td><td>藥品</td><td><strong><code>BOTH</code>＝兩者都做，表二出兩張表（預設，留空亦同）</strong>／<code>FULL</code>＝ATC7 全等／<code>PREFIX5</code>＝前 5 碼相同</td></tr>
+      <tr class="hl"><td class="k"><code>來文日期文號</code></td><td>藥品</td><td>每列填一筆。一項藥品有多筆來文時，把同一個 <code>CODE</code> 貼成多列，<strong>第 2 列起其他欄位可全部留白</strong>，詳見下圖</td></tr>
+      <tr><td class="k"><code>廠商建議價</code>／<code>廠商成本</code></td><td>藥品</td><td>核價試算輸入值</td></tr>
+      <tr><td class="k"><code>十國中位價</code></td><td>藥品</td><td>查不到時留空或填 0，該欄整欄印「無」</td></tr>
+      <tr class="hl"><td class="k"><code>領有許可證</code><span class="tag">下拉</span></td><td>藥品</td><td><code>Y</code>／<code>N</code>，決定成本法是否加計徵收金與營業稅</td></tr>
+      <tr><td class="k"><code>十國加計比例</code></td><td>藥品</td><td>逗號分隔，例 <code>0,10</code></td></tr>
+      <tr><td class="k"><code>成本加計比例</code></td><td>藥品</td><td>逗號分隔，例 <code>15,20,25,30</code></td></tr>
+      <tr><td class="k"><code>藥品治療用途</code></td><td>藥品</td><td>留空則取主檔適應症</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout">
+  <div class="section-head"><h2>主檔排除條件</h2><span class="meta">步驟 02 · 預設排除</span></div>
+  <p class="prose">有兩類品項不是提案的比較對象，工具<strong>預設排除</strong>，可在介面步驟 02 取消勾選：</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>條件</th><th>說明</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td class="k">CODE 前 3 碼為 <code>TPN</code></td><td>院內調製、個別醫院使用，且已不再核定新代碼</td></tr>
+      <tr class="hl"><td class="k"><code>不上網註記</code> ＝ Y</td><td>不列於健保收載清單</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><strong>排除發生在最前面。</strong>是在建立分組模型<strong>之前</strong>就把這些列篩掉，因此提案 Word、提案附件、四分頁報表看到的是<strong>同一份母體</strong>，不會有某一份含、另一份不含的情形。分組的加總、占率分母、近三年平均申報量與級距判定都會跟著改變 —— 這是刻意的，被排除的品項本來就不該進入比較基準。<br><b>本案需求檔內的 CODE 一律保留</b>，不受排除影響。介面診斷列會顯示排除了幾筆、實際採用幾筆。</div>
+
+    <strong>範本已內建防呆。</strong>從介面下載的 <code>案件需求檔_範本.xlsx</code> 中，<code>ATC_MODE</code> 與 <code>領有許可證</code> 是 Excel 下拉選單（套用到第 300 列，點選時會跳出說明），另附一個「<strong>填表說明</strong>」分頁逐欄列出規則。若環境限制降級為 <code>.csv</code>，則沒有下拉與說明分頁。
+  </div>
+
+  <div class="section-head"><h2>來文日期文號的填法</h2><span class="meta">列數可多於藥品數</span></div>
+
+  <figure>
+    <svg viewBox="0 0 880 356" role="img" aria-label="同一個 CODE 可貼成多列各填一筆文號，第二列起其他欄位留白；沒有 CODE 的列則整列略過">
+      <text x="16" y="22" class="s-lbl">案件需求檔　5 列</text>
+
+      <rect x="16" y="32" width="404" height="40" class="s-box"/>
+      <text x="30" y="50" class="s-tm">BC001　建議價 48.4　成本 32.5 …</text>
+      <text x="30" y="66" class="s-tms">115.3.14 第…234號</text>
+
+      <rect x="16" y="78" width="404" height="40" class="s-box"/>
+      <text x="30" y="96" class="s-tm">BC001　<tspan class="s-tms">其餘欄位全部留白</tspan></text>
+      <text x="30" y="112" class="s-tms">115.3.20 第…678號</text>
+
+      <rect x="16" y="124" width="404" height="40" class="s-box"/>
+      <text x="30" y="142" class="s-tm">BC001　<tspan class="s-tms">其餘欄位全部留白</tspan></text>
+      <text x="30" y="158" class="s-tms">115.3.25 第…999號</text>
+
+      <rect x="16" y="170" width="404" height="40" class="s-box-d"/>
+      <text x="30" y="188" class="s-tms">（CODE 空白）</text>
+      <text x="30" y="204" class="s-tms">115.4.01 第…111號</text>
+      <text x="404" y="196" text-anchor="end" class="s-t s-warn">✕</text>
+
+      <rect x="16" y="216" width="404" height="40" class="s-box"/>
+      <text x="30" y="234" class="s-tm">BC009　建議價 2911　成本 2078 …</text>
+      <text x="30" y="250" class="s-tms">115.3.25 第…999號</text>
+
+      <line x1="424" y1="140" x2="464" y2="140" class="s-line" marker-end="url(#ah)"/>
+      <text x="444" y="132" text-anchor="middle" class="s-tms">合併</text>
+
+      <rect x="470" y="32" width="394" height="176" class="s-box-a"/>
+      <text x="486" y="56" class="s-lbl">合併後　2 項藥品</text>
+
+      <rect x="486" y="68" width="362" height="60" class="s-box"/>
+      <text x="500" y="90" class="s-tm">① BC001</text>
+      <text x="500" y="110" class="s-tms">數值欄取第一個非空值（第 1 列）／文號 3 筆</text>
+
+      <rect x="486" y="136" width="362" height="56" class="s-box"/>
+      <text x="500" y="158" class="s-tm">② BC009</text>
+      <text x="500" y="178" class="s-tms">文號 1 筆</text>
+
+      <line x1="667" y1="208" x2="667" y2="270" class="s-line" marker-end="url(#ah)"/>
+      <text x="681" y="242" class="s-tms">（藥商＋文號）去重後串接</text>
+
+      <rect x="16" y="276" width="848" height="42" class="s-box-a"/>
+      <text x="32" y="302" class="s-tm">一、依據甲藥廠115年3月14日…234號函、115年3月20日…678號函、115年3月25日…999號函及乙藥廠…999號函辦理。</text>
+
+      <text x="16" y="342" class="s-ts">說明六仍是 2 張核價表、表五仍是 2 列 —— 不會因為多打了 3 列文號就變成 5 張表。</text>
+    </svg>
+    <figcaption><b>一項藥品有幾筆來文，就把同一個 CODE 貼成幾列，第 2 列起其他欄位全部留白。</b>同 CODE 的列會合併成一項藥品：每個數值欄取<strong>第一個非空值</strong>，來文文號則全部保留、依出現順序去重。唯一的硬規定是<strong>每列都要有 <code>CODE</code></strong> —— 沒有 <code>CODE</code> 的列會整列略過，連同該列填的文號一起不採用。</figcaption>
+  </figure>
+
+  <div class="callout">
+    <strong>不需填寫的欄位：</strong>供應狀況、其他廠商回覆、專家意見不由系統帶入。Word 會保留完整的編號清單與項目文字＋底線，由承辦人在產出後自行補寫。<code>廠商占率</code> 也不需填，由系統計算。
+  </div>
+
+</div></div>
+
+<!-- ══════════ 共用規則 ══════════ -->
+<div class="panel" id="p1"><div class="content">
+
+  <div class="section-head"><h2>1 · 年度視窗</h2></div>
+  <figure>
+    <svg viewBox="0 0 880 132" role="img" aria-label="支付價年月 11504 推出基準年 115，近三年為民國 112、113、114">
+      <rect x="16" y="34" width="164" height="46" class="s-box"/>
+      <text x="30" y="54" class="s-lbl">介面填入</text>
+      <text x="30" y="72" class="s-tm">支付價年月 11504</text>
+      <line x1="180" y1="57" x2="222" y2="57" class="s-line" marker-end="url(#ah)"/>
+      <text x="201" y="49" text-anchor="middle" class="s-tms">前 3 碼</text>
+
+      <rect x="228" y="34" width="146" height="46" class="s-box"/>
+      <text x="242" y="54" class="s-lbl">基準民國年</text>
+      <text x="242" y="72" class="s-tm">115</text>
+      <line x1="374" y1="57" x2="416" y2="57" class="s-line" marker-end="url(#ah)"/>
+      <text x="395" y="49" text-anchor="middle" class="s-tms">−1</text>
+
+      <rect x="422" y="34" width="136" height="46" class="s-box"/>
+      <text x="490" y="63" text-anchor="middle" class="s-tm">民國 112</text>
+      <text x="490" y="98" text-anchor="middle" class="s-lbl">YR1</text>
+
+      <rect x="570" y="34" width="136" height="46" class="s-box"/>
+      <text x="638" y="63" text-anchor="middle" class="s-tm">民國 113</text>
+      <text x="638" y="98" text-anchor="middle" class="s-lbl">YR2</text>
+
+      <rect x="718" y="34" width="146" height="46" class="s-box-a"/>
+      <text x="791" y="63" text-anchor="middle" class="s-tm">民國 114</text>
+      <text x="791" y="98" text-anchor="middle" class="s-lbl s-acc">YR3　當期</text>
+    </svg>
+    <figcaption><b>支付價年月的前三碼就是基準民國年，當期年度是基準年減 1。</b>若主檔沒有該年度的 <code>QTY</code>／<code>AMT</code> 欄，整個視窗自動往前推，直到找到存在的年度為止（最多回推 8 年）。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>2 · 0 元項目的年度歸零</h2></div>
+  <figure>
+    <svg viewBox="0 0 880 200" role="img" aria-label="支付價 0 元且有生效日期者，晚於生效年的年度申報量與金額歸零，生效年當年及更早保留">
+      <text x="316" y="24" text-anchor="middle" class="s-lbl">民國 112</text>
+      <text x="456" y="24" text-anchor="middle" class="s-lbl">民國 113</text>
+      <text x="596" y="24" text-anchor="middle" class="s-lbl">民國 114</text>
+
+      <text x="16" y="62" class="s-t">一般項目</text>
+      <text x="16" y="80" class="s-ts">支付價 41</text>
+      <rect x="252" y="38" width="128" height="46" class="s-box"/>
+      <text x="316" y="67" text-anchor="middle" class="s-tm">8,200</text>
+      <rect x="392" y="38" width="128" height="46" class="s-box"/>
+      <text x="456" y="67" text-anchor="middle" class="s-tm">9,100</text>
+      <rect x="532" y="38" width="128" height="46" class="s-box"/>
+      <text x="596" y="67" text-anchor="middle" class="s-tm">9,600</text>
+
+      <text x="16" y="140" class="s-t">0 元項目</text>
+      <text x="16" y="158" class="s-ts">支付價 0，生效 113</text>
+      <rect x="252" y="116" width="128" height="46" class="s-box"/>
+      <text x="316" y="145" text-anchor="middle" class="s-tm">4,300</text>
+      <rect x="392" y="116" width="128" height="46" class="s-box"/>
+      <text x="456" y="145" text-anchor="middle" class="s-tm">3,800</text>
+      <rect x="532" y="116" width="128" height="46" class="s-box-d"/>
+      <text x="596" y="145" text-anchor="middle" class="s-tms">0</text>
+
+      <line x1="456" y1="96" x2="456" y2="112" class="s-line-w" marker-end="url(#ahw)"/>
+      <text x="448" y="107" text-anchor="end" class="s-tms s-warn">生效年</text>
+
+      <line x1="668" y1="139" x2="700" y2="139" class="s-line-d" marker-end="url(#ahd)"/>
+      <text x="710" y="134" class="s-ts">晚於生效年的年度</text>
+      <text x="710" y="151" class="s-ts">QTY／AMT 一律視為 0</text>
+    </svg>
+    <figcaption><b>項目可能在 115 年某月才取消給付，但 114 年仍有真實申報資料，不能整筆丟掉。</b>規則：<code>PRICE{年月} = 0</code> 且該列有 <code>生效日期</code> 時，把晚於生效民國年的年度歸零；生效年當年及更早照原值保留。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>3 · 分組層彙總與項目數</h2><span class="meta">以 分組代碼 為單位</span></div>
+  <p class="prose">以 <code>分組代碼</code> 為單位把該分組所有項目加總，得到三年的申報金額與數量、支付價區間、<strong>項目數</strong>，以及近三年平均申報量與每月申報金額。其中「項目數」只有兩種情形計入：</p>
+
+  <figure>
+    <svg viewBox="0 0 880 176" role="img" aria-label="項目數計數規則：支付價非 0 計入；支付價 0 但不良品註記 Y 也計入；其餘不計">
+      <rect x="16" y="16" width="200" height="126" class="s-box"/>
+      <text x="32" y="42" class="s-lbl">情形 A</text>
+      <text x="32" y="66" class="s-tm">支付價　41</text>
+      <text x="32" y="86" class="s-tm">不良品註記　—</text>
+      <line x1="32" y1="100" x2="200" y2="100" class="s-line-d"/>
+      <text x="32" y="124" class="s-t s-acc">計入　+1</text>
+
+      <rect x="232" y="16" width="200" height="126" class="s-box-w"/>
+      <text x="248" y="42" class="s-lbl">情形 B</text>
+      <text x="248" y="66" class="s-tm">支付價　0</text>
+      <text x="248" y="86" class="s-tm s-warn">不良品註記　Y</text>
+      <line x1="248" y1="100" x2="416" y2="100" class="s-line-d"/>
+      <text x="248" y="124" class="s-t s-warn">計入　+1</text>
+
+      <rect x="448" y="16" width="200" height="126" class="s-box-d"/>
+      <text x="464" y="42" class="s-lbl">情形 C</text>
+      <text x="464" y="66" class="s-tms">支付價　0</text>
+      <text x="464" y="86" class="s-tms">不良品註記　—</text>
+      <line x1="464" y1="100" x2="632" y2="100" class="s-line-d"/>
+      <text x="464" y="124" class="s-ts">不計</text>
+
+      <rect x="664" y="16" width="200" height="126" class="s-box-d"/>
+      <text x="680" y="42" class="s-lbl">情形 D</text>
+      <text x="680" y="66" class="s-tms">支付價　空白</text>
+      <text x="680" y="86" class="s-tms">不良品註記　—</text>
+      <line x1="680" y1="100" x2="848" y2="100" class="s-line-d"/>
+      <text x="680" y="124" class="s-ts">不計</text>
+
+      <text x="16" y="168" class="s-ts">另有「分組項目總數（含 0 元）」＝ 該分組全部列數，不做上述篩選。</text>
+    </svg>
+    <figcaption><b>0 元不等於不存在。</b>暫時停止支付（不良品註記 <code>Y</code>）的項目價格雖為 0，仍屬該分組收載中的項目，因此計入項目數 —— 但在表二的支付價欄不會印出來，改以備註說明。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>4 · 近三年平均申報量</h2></div>
+  <figure>
+    <svg viewBox="0 0 880 148" role="img" aria-label="早於分組收載年的年度不納入平均，分母只算實際納入的年數">
+      <text x="16" y="52" class="s-t">分組收載年</text>
+      <text x="16" y="72" class="s-tm s-warn">民國 113</text>
+
+      <rect x="172" y="30" width="136" height="48" class="s-box-d"/>
+      <text x="240" y="52" text-anchor="middle" class="s-tms">民國 112</text>
+      <text x="240" y="70" text-anchor="middle" class="s-tms">未收載</text>
+
+      <rect x="324" y="30" width="136" height="48" class="s-box"/>
+      <text x="392" y="52" text-anchor="middle" class="s-tms">民國 113</text>
+      <text x="392" y="70" text-anchor="middle" class="s-tm">3,800</text>
+
+      <rect x="476" y="30" width="136" height="48" class="s-box"/>
+      <text x="544" y="52" text-anchor="middle" class="s-tms">民國 114</text>
+      <text x="544" y="70" text-anchor="middle" class="s-tm">4,200</text>
+
+      <line x1="612" y1="54" x2="648" y2="54" class="s-line" marker-end="url(#ah)"/>
+      <rect x="654" y="30" width="210" height="48" class="s-box-a"/>
+      <text x="759" y="60" text-anchor="middle" class="s-tm">( 3,800 + 4,200 ) ÷ 2</text>
+
+      <text x="240" y="108" text-anchor="middle" class="s-ts">不納入分子</text>
+      <text x="240" y="124" text-anchor="middle" class="s-ts">也不納入分母</text>
+      <text x="759" y="108" text-anchor="middle" class="s-ts">分母是實際納入的年數，不固定為 3</text>
+    </svg>
+    <figcaption><b>分組收載年 ＝ 該分組所有項目 <code>收載日期</code> 的最小值。</b>三年視窗中早於收載年的年度不納入，平均只除以實際納入的年數。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>5 · 同分組每月申報金額</h2><span class="meta">加成級距的唯一判定依據</span></div>
+  <p class="prose">＝ 該分組<strong>當期年度 <code>AMT</code> 總計</strong> ÷ 12。注意分子是<strong>整個分組所有項目</strong>的申報金額加總，不是本案單一項目。</p>
+
+  <div class="section-head"><h2>加成級距</h2><span class="meta">支付標準第 35 條</span></div>
+  <figure>
+    <svg viewBox="0 0 880 190" role="img" aria-label="每月申報金額三個級距對應的十國法與成本法加成率，邊界值屬左側級距">
+      <rect x="40" y="40" width="280" height="34" class="s-box"/>
+      <rect x="320" y="40" width="260" height="34" class="s-box"/>
+      <rect x="580" y="40" width="260" height="34" class="s-box"/>
+      <text x="180" y="62" text-anchor="middle" class="s-tm">≤ 500,000</text>
+      <text x="450" y="62" text-anchor="middle" class="s-tm">≤ 1,000,000</text>
+      <text x="710" y="62" text-anchor="middle" class="s-tm">&gt; 1,000,000</text>
+
+      <line x1="40" y1="90" x2="840" y2="90" class="s-line"/>
+      <line x1="320" y1="84" x2="320" y2="96" class="s-line"/>
+      <line x1="580" y1="84" x2="580" y2="96" class="s-line"/>
+      <text x="320" y="110" text-anchor="middle" class="s-tms">500,000</text>
+      <text x="580" y="110" text-anchor="middle" class="s-tms">1,000,000</text>
+      <text x="40" y="110" class="s-tms">0</text>
+
+      <text x="16" y="140" class="s-lbl">十國藥價法</text>
+      <text x="180" y="140" text-anchor="middle" class="s-t">加 20%</text>
+      <text x="450" y="140" text-anchor="middle" class="s-t">加 10%</text>
+      <text x="710" y="140" text-anchor="middle" class="s-t">0%（中位數本身）</text>
+
+      <text x="16" y="168" class="s-lbl">成本價法</text>
+      <text x="180" y="168" text-anchor="middle" class="s-t">加計 50%</text>
+      <text x="450" y="168" text-anchor="middle" class="s-t">加計 40%</text>
+      <text x="710" y="168" text-anchor="middle" class="s-t">加計 30%</text>
+    </svg>
+    <figcaption><b>邊界值歸左側級距。</b>條文寫的是「小於等於新臺幣五十萬元／一百萬元」，因此金額恰好等於 500,000 或 1,000,000 時，適用的是左邊那一格。判定結果同時決定 Word 中「註 1」「註 2」引述的法條文字，兩者永遠一致。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>核價公式</h2><span class="meta">支付標準第 40 條</span></div>
+
+  <div class="pre-label">第 40 條 · 小數處理（一律無條件捨去）</div>
+<pre><span class="c">// 核算價小於 5 元 → 取至小數點後第 2 位</span>
+<span class="k">if</span> (v &lt; 5)   截斷至小數 2 位
+<span class="c">// 5 元以上、未滿 50 元 → 取至小數點後第 1 位</span>
+<span class="k">if</span> (v &lt; 50)  截斷至小數 1 位
+<span class="c">// 50 元以上 → 取至整數</span>
+<span class="k">else</span>         截斷至整數</pre>
+
+  <div class="pre-label">參考十國藥價法</div>
+<pre>調高後支付價 = 第40條進位( 十國中位價 × (1 + 加計比例) )</pre>
+
+  <div class="pre-label">參考成本價法</div>
+  <figure>
+    <svg viewBox="0 0 880 216" role="img" aria-label="成本價法四個步驟，未領有許可證時跳過第三步的加計">
+      <rect x="16" y="34" width="196" height="72" class="s-box"/>
+      <text x="32" y="58" class="s-lbl">① 乘加成</text>
+      <text x="32" y="82" class="s-tm">成本 × (1 + 比例)</text>
+      <line x1="212" y1="70" x2="240" y2="70" class="s-line" marker-end="url(#ah)"/>
+
+      <rect x="246" y="34" width="196" height="72" class="s-box"/>
+      <text x="262" y="58" class="s-lbl">② 取小數 2 位</text>
+      <text x="262" y="82" class="s-tm">無條件捨去</text>
+      <line x1="442" y1="70" x2="470" y2="70" class="s-line" marker-end="url(#ah)"/>
+
+      <rect x="476" y="34" width="196" height="72" class="s-box-w"/>
+      <text x="492" y="58" class="s-lbl">③ 領證加計</text>
+      <text x="492" y="82" class="s-tm">× 1.0505</text>
+      <line x1="672" y1="70" x2="700" y2="70" class="s-line" marker-end="url(#ah)"/>
+
+      <rect x="706" y="34" width="158" height="72" class="s-box-a"/>
+      <text x="722" y="58" class="s-lbl">④ 第 40 條</text>
+      <text x="722" y="82" class="s-tm">進位（捨去）</text>
+
+      <polyline points="344,110 344,160 785,160 785,112" class="s-line-d" marker-end="url(#ahd)"/>
+      <text x="564" y="152" text-anchor="middle" class="s-ts">領有許可證 = N　→　跳過 ③</text>
+
+      <text x="16" y="196" class="s-ts">1.0505 ＝ 1 ＋ 營業稅 5% ＋ 藥害救濟徵收金 0.05%</text>
+    </svg>
+    <figcaption><b>只有領有藥物許可證者才走第 ③ 步。</b>四個步驟的中間值都已與既有試算程式逐一對拍。</figcaption>
+  </figure>
+
+  <div class="callout">
+    <strong>小數誤差已做防護。</strong>電腦以二進位儲存小數，<code>3.8 × 1.2</code> 在機器裡其實是 <code>4.559999999999999</code> 而非 <code>4.56</code>。若直接無條件捨去會誤得 <code>4.55</code>，比正確值少一分錢。本工具在每次截斷前先還原到 15 位有效位數，把這類機器誤差清掉再截斷，因此 <code>3.8 × 1.2</code> 正確得到 <code>4.56</code>；真實資料本身就是 <code>4.55999</code> 的情形則不受影響，仍正確截為 <code>4.55</code>。同樣的防護也套用在加成級距的判定上，避免金額加總的累積誤差讓案件落入錯誤級距。
+  </div>
+
+  <div class="pre-label">整體藥費與財務衝擊</div>
+<pre>整體藥費 = 調高後支付價 × 同分組近三年平均申報量
+財務衝擊 = (調高後支付價 − 現行健保價) × 同分組近三年平均申報量</pre>
+
+  <div class="section-head"><h2>金額顯示級距</h2></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>範圍</th><th>顯示方式</th><th>範例</th></tr></thead>
+    <tbody>
+      <tr><td class="k">未滿 1 萬</td><td>完整數字</td><td><code>850</code>　<code>9,500</code></td></tr>
+      <tr><td class="k">1 萬 ～ 未滿 1 億</td><td>以「萬」為單位，最多 1 位小數，尾數 0 不顯示</td><td><code>1,001,000</code> → <code>100.1萬</code></td></tr>
+      <tr><td class="k">1 億以上</td><td>以「億」為單位，最多 1 位小數</td><td><code>10,020,000,000</code> → <code>100.2億</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="section-head"><h2>占率位數</h2></div>
+  <p class="prose">占率依數值大小自動決定小數位：10% 以上取整數、1～10% 取 1 位、未滿 1% 則補到第一個有效數字為止（例 <code>0.05%</code>）。此規則與既有試算程式一致。</p>
+
+</div></div>
+
+<!-- ══════════ 提案 Word ══════════ -->
+<div class="panel" id="p2"><div class="content">
+
+  <div class="section-head"><h2>說明一 · 依據</h2></div>
+  <p class="prose">不分項呈現。同一藥商的多筆來文集中在一起，<strong>只在該藥商第一筆來文前冠上藥商名稱</strong>；各筆之間以「、」分隔，最後一筆以「及」連接。一項藥品可帶多筆文號（同 CODE 多列），文號的填法見「總覽」分頁的圖。</p>
+  <div class="pre-label">產出樣式</div>
+<pre>一、依據拜耳115年3月14日健保審字第1150001234號函、
+    115年3月20日健保審字第1150005678號函及
+    諾華115年3月25日健保審字第1150009999號函辦理。</pre>
+
+  <div class="section-head"><h2>說明二 · 藥品資訊</h2></div>
+  <p class="prose">標題文字為「<strong>本案藥品健保收載情形說明如下：</strong>」。每項藥品各成一段（（一）（二）…），由承辦人視情況取捨；段末於適應症之後加註「<strong>，ATC7碼為 {ATC7碼} {ATC名稱}</strong>」。藥品段落之後的（分組表）（ATC7碼表）（ATC5碼表）三個項目，均於冒號左方留 <code>(P-)</code> 供填寫附件頁碼，並自動帶出「共計 x 項」「共計 x 分組、x 項目」。兩個對照轉換如下。</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>來源欄位</th><th>值</th><th>提案用語</th></tr></thead>
+    <tbody>
+      <tr><td class="k" rowspan="5"><code>藥品分類</code></td><td>1</td><td>原開發廠藥品</td></tr>
+      <tr><td>3</td><td>BA/BE 學名藥品</td></tr>
+      <tr><td>4</td><td>一般學名藥品</td></tr>
+      <tr><td>5</td><td>生物相似性藥品</td></tr>
+      <tr><td>9</td><td>BE 對照品</td></tr>
+      <tr><td class="k" rowspan="4"><code>分類</code></td><td>1</td><td>第一大類</td></tr>
+      <tr><td>2</td><td>第二大類</td></tr>
+      <tr><td>3、4</td><td>第三A 大類</td></tr>
+      <tr><td>5、6</td><td>第三B 大類</td></tr>
+    </tbody>
+  </table></div>
+  <p class="prose">「收載超過／未滿 15 年」＝ 支付價基準民國年 − <code>收載日期</code> 的民國年 ≥ 15。日期無法判讀時印「超過／未滿」交由人工圈選。</p>
+
+  <div class="section-head"><h2>表一 · 同分組</h2><span class="meta">全案合併一張</span></div>
+  <ol class="steps">
+    <li>取本案所有項目所屬<strong>分組代碼的聯集</strong>，納入這些分組的全部項目。呈現的是分組資訊，因此不再用 ATC 過濾。</li>
+    <li>排序：<strong>分組代碼由小到大 → 該年申報金額由大到小</strong>。</li>
+    <li><strong>現行支付價為 0 者不列出</strong>，但其金額與數量仍計入占率分母與各項統計。</li>
+    <li>本案項目在<strong>項次下方</strong>標註「（本案藥品）」，且<strong>只有這四個字加粗</strong>，資料列本身一律不加粗。</li>
+    <li>金額／數量欄名帶年度（如「114年整組申報金額(元)」），支付價欄名帶年月（如「現行健保支付價(115年8月)(元)」）。</li>
+  </ol>
+
+  <figure>
+    <svg viewBox="0 0 880 176" role="img" aria-label="表一欄序調整：刪除每月平均欄，申報量移到最後">
+      <text x="16" y="34" class="s-lbl">舊</text>
+      <rect x="40" y="18" width="56" height="34" class="s-box"/><text x="68" y="40" text-anchor="middle" class="s-tms">項次</text>
+      <rect x="104" y="18" width="104" height="34" class="s-box"/><text x="156" y="40" text-anchor="middle" class="s-tms">藥品名稱</text>
+      <rect x="216" y="18" width="62" height="34" class="s-box"/><text x="247" y="40" text-anchor="middle" class="s-tms">藥商</text>
+      <rect x="286" y="18" width="104" height="34" class="s-box"/><text x="338" y="40" text-anchor="middle" class="s-tms">現行支付價</text>
+      <rect x="398" y="18" width="104" height="34" class="s-box-a"/><text x="450" y="40" text-anchor="middle" class="s-tms">整組申報量</text>
+      <rect x="510" y="18" width="114" height="34" class="s-box"/><text x="567" y="40" text-anchor="middle" class="s-tms">整組申報金額</text>
+      <rect x="632" y="18" width="62" height="34" class="s-box"/><text x="663" y="40" text-anchor="middle" class="s-tms">占率</text>
+      <rect x="702" y="18" width="96" height="34" class="s-box-d"/><text x="750" y="40" text-anchor="middle" class="s-tms">每月平均</text>
+      <text x="810" y="40" class="s-ts">刪除</text>
+
+      <path d="M450 58 C 450 86, 745 80, 745 108" class="s-line-a" marker-end="url(#ahc)"/>
+
+      <text x="16" y="134" class="s-lbl">新</text>
+      <rect x="40" y="118" width="56" height="34" class="s-box"/><text x="68" y="140" text-anchor="middle" class="s-tms">項次</text>
+      <rect x="104" y="118" width="104" height="34" class="s-box"/><text x="156" y="140" text-anchor="middle" class="s-tms">藥品名稱</text>
+      <rect x="216" y="118" width="62" height="34" class="s-box"/><text x="247" y="140" text-anchor="middle" class="s-tms">藥商</text>
+      <rect x="286" y="118" width="104" height="34" class="s-box"/><text x="338" y="140" text-anchor="middle" class="s-tms">現行支付價</text>
+      <rect x="398" y="118" width="130" height="34" class="s-box"/><text x="463" y="140" text-anchor="middle" class="s-tms">114年申報金額</text>
+      <rect x="536" y="118" width="90" height="34" class="s-box"/><text x="581" y="140" text-anchor="middle" class="s-tms">114年占率</text>
+      <rect x="634" y="118" width="124" height="34" class="s-box-a"/><text x="696" y="140" text-anchor="middle" class="s-tms">114年申報量</text>
+    </svg>
+    <figcaption><b>刪一欄、移一欄。</b>「整組每月平均申報金額」是申報金額 ÷ 12，表上另有申報金額可直接推算，重複列出只是佔版面，因此刪除；申報量與金額同源但用途不同，移到最末欄，讓「金額 → 占率」兩個互相對照的欄位相鄰。</figcaption>
+  </figure>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>欄位</th><th>來源／計算</th></tr></thead>
+    <tbody>
+      <tr><td class="k">藥品名稱／藥商</td><td>主檔 <code>藥品名稱</code>、<code>藥商名稱</code></td></tr>
+      <tr><td class="k">現行健保支付價</td><td>主檔 <code>PRICE{年月}</code></td></tr>
+      <tr><td class="k">{當期年}年整組申報金額</td><td>主檔 <code>AMT{當期年}</code>（已套 0 元歸零）</td></tr>
+      <tr class="hl"><td class="k">{當期年}年占率</td><td>該項目金額 ÷ <strong>其所屬分組</strong>的金額總計</td></tr>
+      <tr class="hl"><td class="k">{當期年}年整組申報量</td><td>主檔 <code>QTY{當期年}</code>（已套 0 元歸零）。<strong>移至最末欄</strong>；原「整組每月平均申報金額」欄已刪除</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><strong>占率分母說明：</strong>本表可能同時含多個分組，因此占率以「同分組內」為基準計算，而非全表合計，否則跨分組相加會失真。</div>
+
+  <div class="section-head"><h2>表二 · 同 ATC 碼</h2><span class="meta">實為分組收載資訊</span></div>
+
+  <figure>
+    <svg viewBox="0 0 880 332" role="img" aria-label="ATC 只用來挑出分組，之後該分組的全部項目都納入，包含 ATC7 碼不同的項目">
+      <rect x="16" y="16" width="848" height="56" class="s-box"/>
+      <text x="34" y="40" class="s-lbl">步驟 ①</text>
+      <text x="120" y="42" class="s-t">用本案 ATC7 碼（依 <tspan class="s-tm">ATC_MODE</tspan>）比對主檔，找出相符的項目</text>
+      <text x="120" y="60" class="s-ts">例：本案 B01AB01　→　命中 BC001、BC002、BC005</text>
+
+      <line x1="440" y1="72" x2="440" y2="94" class="s-line" marker-end="url(#ah)"/>
+
+      <rect x="16" y="100" width="848" height="56" class="s-box"/>
+      <text x="34" y="124" class="s-lbl">步驟 ②</text>
+      <text x="120" y="126" class="s-t">取這些項目的<tspan class="s-acc">分組代碼</tspan>集合 —— ATC 的作用到此為止</text>
+      <text x="120" y="144" class="s-ts">例：命中的三項分屬 G1、G2　→　得到 { G1, G2 }</text>
+
+      <line x1="440" y1="156" x2="440" y2="178" class="s-line" marker-end="url(#ah)"/>
+
+      <rect x="16" y="184" width="848" height="132" class="s-box-a"/>
+      <text x="34" y="208" class="s-lbl">步驟 ③</text>
+      <text x="120" y="210" class="s-t">這些分組的<tspan class="s-acc">全部項目</tspan>都納入統計，不再看 ATC7 碼</text>
+
+      <rect x="120" y="228" width="220" height="66" class="s-box"/>
+      <text x="136" y="252" class="s-tm">BC001　B01AB01</text>
+      <text x="136" y="274" class="s-tms s-acc">（本案藥品）</text>
+
+      <rect x="356" y="228" width="220" height="66" class="s-box"/>
+      <text x="372" y="252" class="s-tm">BC002　B01AB01</text>
+      <text x="372" y="274" class="s-tms">ATC7 相符</text>
+
+      <rect x="592" y="228" width="256" height="66" class="s-box-w"/>
+      <text x="608" y="252" class="s-tm s-warn">BC009　B01AC07</text>
+      <text x="608" y="274" class="s-tms s-warn">ATC7 不同，但同屬 G1 → 仍納入</text>
+
+      <text x="120" y="310" class="s-ts">整組支付價皆為 0 的分組不列出。</text>
+    </svg>
+    <figcaption><b>ATC 只是找分組的入口，統計單位始終是「分組」。</b>部分分組會把不同 ATC7 碼歸為同一分組，若只統計 ATC7 相符者會漏算，因此步驟 ③ 一律以整個分組為單位。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>ATC_MODE · 三種比對方式</h2><span class="meta">需求檔下拉選單 · 預設 BOTH</span></div>
+  <figure>
+    <svg viewBox="0 0 880 234" role="img" aria-label="ATC_MODE 三種模式：FULL 與 PREFIX5 各出一張表，BOTH 出兩張表">
+      <rect x="16" y="16" width="272" height="176" class="s-box"/>
+      <text x="34" y="42" class="s-tm">FULL</text>
+      <text x="34" y="62" class="s-ts">只看 7 碼全等</text>
+      <text x="34" y="98" class="s-lbl">比對</text>
+      <text x="34" y="122" class="s-tm">B01AB01　全 7 碼相等</text>
+      <line x1="34" y1="138" x2="270" y2="138" class="s-line-d"/>
+      <text x="34" y="164" class="s-lbl">表二產出</text>
+      <text x="34" y="184" class="s-t">1 張　「同ATC7碼」</text>
+
+      <rect x="304" y="16" width="272" height="176" class="s-box"/>
+      <text x="322" y="42" class="s-tm">PREFIX5</text>
+      <text x="322" y="62" class="s-ts">放寬到化學次類</text>
+      <text x="322" y="98" class="s-lbl">比對</text>
+      <text x="322" y="122" class="s-tm">B01AB<tspan class="s-mute">01</tspan>　前 5 碼相同</text>
+      <line x1="322" y1="138" x2="558" y2="138" class="s-line-d"/>
+      <text x="322" y="164" class="s-lbl">表二產出</text>
+      <text x="322" y="184" class="s-t">1 張　「同ATC前5碼」</text>
+
+      <rect x="592" y="16" width="272" height="176" class="s-box-a"/>
+      <text x="610" y="42" class="s-tm s-acc">BOTH</text>
+      <text x="610" y="62" class="s-ts s-acc">預設值　留空亦同</text>
+      <text x="610" y="98" class="s-lbl">比對</text>
+      <text x="610" y="122" class="s-tm">兩種都做</text>
+      <line x1="610" y1="138" x2="846" y2="138" class="s-line-d"/>
+      <text x="610" y="164" class="s-lbl">表二產出</text>
+      <text x="610" y="184" class="s-t s-acc">2 張　分開編號、分開備註</text>
+
+      <text x="16" y="222" class="s-ts">多列藥品混用不同模式時：凡出現 FULL／BOTH 者進第一張表，凡出現 PREFIX5／BOTH 者進第二張表；只有一種時只出一張。</text>
+    </svg>
+    <figcaption><b><code>BOTH</code> 不是折衷，是兩張表，而且是<u>預設值</u>。</b>需求檔的 <code>ATC_MODE</code> 留空、或填了無法辨識的值，一律視為 <code>BOTH</code>；要縮成一張表才需要明確選 <code>FULL</code> 或 <code>PREFIX5</code>。Word 說明二的（三）（四）由真編號自動接續，不需手動改號。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>表二 · 項目數與 0 元支付價</h2><span class="meta">本次調整</span></div>
+  <figure>
+    <svg viewBox="0 0 880 300" role="img" aria-label="分組內四個項目如何對應到表二的項目數、支付價欄與表下備註">
+      <text x="16" y="24" class="s-lbl">分組「成分A 10mg 錠」的全部項目</text>
+
+      <rect x="16" y="34" width="404" height="40" class="s-box"/>
+      <text x="32" y="59" class="s-tm">BC001　支付價 41</text>
+      <text x="300" y="59" class="s-ts">計入　顯示</text>
+
+      <rect x="16" y="80" width="404" height="40" class="s-box"/>
+      <text x="32" y="105" class="s-tm">BC002　支付價 38</text>
+      <text x="300" y="105" class="s-ts">計入　顯示</text>
+
+      <rect x="16" y="126" width="404" height="40" class="s-box-w"/>
+      <text x="32" y="151" class="s-tm s-warn">BC003　支付價 0　不良品 Y</text>
+      <text x="300" y="151" class="s-ts s-warn">計入　不顯示</text>
+
+      <rect x="16" y="172" width="404" height="40" class="s-box-d"/>
+      <text x="32" y="197" class="s-tms">BC004　支付價 0</text>
+      <text x="300" y="197" class="s-ts">不計　不顯示</text>
+
+      <line x1="424" y1="123" x2="466" y2="123" class="s-line" marker-end="url(#ah)"/>
+
+      <rect x="472" y="34" width="392" height="178" class="s-box"/>
+      <text x="490" y="60" class="s-lbl">表二的這一列</text>
+
+      <text x="490" y="92" class="s-ts">項目數</text>
+      <text x="846" y="92" text-anchor="end" class="s-tm s-acc">3</text>
+      <line x1="490" y1="104" x2="846" y2="104" class="s-line-d"/>
+
+      <text x="490" y="130" class="s-ts">現行健保支付價（元）</text>
+      <text x="846" y="130" text-anchor="end" class="s-tm">38、41</text>
+      <line x1="490" y1="142" x2="846" y2="142" class="s-line-d"/>
+
+      <text x="490" y="168" class="s-ts">整組申報金額／申報量</text>
+      <text x="846" y="168" text-anchor="end" class="s-tms">全部 4 項加總</text>
+      <line x1="490" y1="180" x2="846" y2="180" class="s-line-d"/>
+
+      <text x="490" y="202" class="s-tms">支付價欄不出現 0</text>
+
+      <line x1="668" y1="212" x2="668" y2="240" class="s-line-w" marker-end="url(#ahw)"/>
+
+      <rect x="16" y="246" width="848" height="42" class="s-box-w"/>
+      <text x="34" y="272" class="s-tm s-warn">註：成分A 10mg 錠之項目數包含 1 項暫時停止支付項目。</text>
+    </svg>
+    <figcaption><b>項目數計入、支付價不顯示、表下補一行備註。</b>暫時停止支付的項目仍屬收載中的項目，所以要算進項目數；但把 0 印在支付價欄會被誤讀成「這個分組有 0 元的藥」，因此改以備註說明。每個有此情形的分組各一行備註，緊接在該表下方。</figcaption>
+  </figure>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>欄位</th><th>來源／計算</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td class="k">項目數</td><td>支付價 ≠ 0 者計 1；支付價 ＝ 0 但 <code>不良品暫停支付註記 = 'Y'</code> 者亦計 1；其餘不計。<strong>數字的範圍就是該列所代表的範圍</strong>：該列是一個分組時＝整組項目數，該列是「分組＋ATC7碼」時＝該 ATC7 碼底下的項目數。<span class="s-mute">欄名沿革：分類分組品項數 → 同分組項目數 → 項目數</span></td></tr>
+      <tr class="hl"><td class="k">現行健保支付價</td><td>該分組相異支付價由小到大以「、」串接，<strong>略過 0 元</strong></td></tr>
+      <tr><td class="k">整組申報金額／數量</td><td>該分組全部項目的 <code>AMT{當期年}</code>／<code>QTY{當期年}</code> 加總（含 0 元者）</td></tr>
+      <tr class="hl"><td class="k">ATC7 碼／ATC 名稱欄</td><td><strong>同 ATC 5 碼的表固定顯示</strong>這兩欄（置於分組名稱右方）；同 ATC7 碼的表則只有在出現「一個分組含多個 ATC7 碼」時才顯示。顯示這兩欄時，同分組的多個 ATC7 碼<strong>分列呈現各自數據</strong>，分組名稱與項次<strong>合併儲存格</strong>；不顯示時每個分組一列。<strong>兩種情況欄名一律為「項目數」</strong></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="section-head"><h2>表五 · 廠商建議</h2></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>欄位</th><th>來源／計算</th></tr></thead>
+    <tbody>
+      <tr><td class="k">藥品名稱／分類分組名稱</td><td>主檔</td></tr>
+      <tr><td class="k">現行支付價</td><td>主檔 <code>PRICE{年月}</code></td></tr>
+      <tr><td class="k">廠商建議價／廠商成本</td><td>需求檔</td></tr>
+      <tr class="hl"><td class="k">十國藥價中位數</td><td>需求檔 <code>十國中位價</code>；留空或 0 時印「無」。<strong>欄名由「十國中位價」改為「十國藥價中位數」</strong></td></tr>
+      <tr><td class="k">廠商占率</td><td>本案項目金額 ÷ 同分組金額總計（系統計算，不需填）</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="section-head"><h2>說明六 · 核價試算</h2><span class="meta">每項藥品一張表</span></div>
+  <p class="prose">加計比例的檔數由需求檔的 <code>十國加計比例</code>、<code>成本加計比例</code> 指定，各案可不同。十國中位價缺漏時，該欄整欄印「無」，僅呈現成本法。</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>列</th><th>內容</th></tr></thead>
+    <tbody>
+      <tr><td class="k">調高後支付價</td><td>各加計比例下依核價公式算出的核算價</td></tr>
+      <tr><td class="k">整體藥費</td><td>調高後支付價 × 同分組近三年平均申報量</td></tr>
+      <tr><td class="k">財務衝擊</td><td>(調高後支付價 − 現行健保價) × 同分組近三年平均申報量，為年度推估</td></tr>
+    </tbody>
+  </table></div>
+  <p class="prose">表格下方的「註 1」「註 2」依該藥品所屬分組的每月申報金額級距自動帶入對應法條；多項藥品若級距相同則合併只印一次，領證與否的加計說明另外分列。</p>
+
+</div></div>
+
+<!-- ══════════ Excel ══════════ -->
+<div class="panel" id="p3"><div class="content">
+
+  <div class="section-head"><h2>篩選範圍</h2><span class="meta">僅影響 Excel，不影響提案 Word</span></div>
+  <p class="prose">介面提供 ATC7碼、分組代碼、分組名稱、CODE、藥品名稱五個篩選欄，採前綴比對、多值以空白或逗號分隔、任一命中即納入。留空代表不篩選。</p>
+
+  <figure>
+    <svg viewBox="0 0 880 244" role="img" aria-label="篩選後的項目集合同時餵給四個分頁，分頁三排除 0 元、分頁四包含 0 元">
+      <rect x="16" y="88" width="180" height="68" class="s-box"/>
+      <text x="32" y="114" class="s-lbl">篩選後</text>
+      <text x="32" y="136" class="s-t">符合條件的項目</text>
+
+      <polyline points="196,122 236,122" class="s-line"/>
+      <line x1="236" y1="38" x2="236" y2="206" class="s-line"/>
+      <line x1="236" y1="38" x2="274" y2="38" class="s-line" marker-end="url(#ah)"/>
+      <line x1="236" y1="94" x2="274" y2="94" class="s-line" marker-end="url(#ah)"/>
+      <line x1="236" y1="150" x2="274" y2="150" class="s-line" marker-end="url(#ah)"/>
+      <line x1="236" y1="206" x2="274" y2="206" class="s-line" marker-end="url(#ah)"/>
+
+      <rect x="280" y="18" width="584" height="40" class="s-box"/>
+      <text x="298" y="43" class="s-t">1．藥價核定試算　<tspan class="s-ts">逐項核價矩陣、註1／註2、分組每月申報金額</tspan></text>
+
+      <rect x="280" y="74" width="584" height="40" class="s-box"/>
+      <text x="298" y="99" class="s-t">2．分組統計　<tspan class="s-ts">分組代碼 × ATC 分群，欄名「項目數」</tspan></text>
+
+      <rect x="280" y="130" width="584" height="40" class="s-box"/>
+      <text x="298" y="155" class="s-t">3．項目明細　<tspan class="s-ts">排除支付價 0 元</tspan></text>
+
+      <rect x="280" y="186" width="584" height="40" class="s-box-w"/>
+      <text x="298" y="211" class="s-t">4．項目明細（含 0 元）　<tspan class="s-ts s-warn">全部項目＋生效日期、不良品註記、暫停前價格</tspan></text>
+    </svg>
+    <figcaption><b>分頁 3 與分頁 4 內容相同，差別只在 0 元項目。</b>要查某個項目為何變成 0 元，看分頁 4；要看實際在給付的項目，看分頁 3。</figcaption>
+  </figure>
+
+  <div class="section-head"><h2>分頁 1 · 藥價核定試算</h2></div>
+  <p class="prose">內容與提案 Word 說明六相同，逐項藥品呈現核價矩陣、註 1／註 2 與該分組的每月申報金額、近三年平均申報量，供核對用。</p>
+
+  <div class="section-head"><h2>分頁 2 · 分組統計</h2></div>
+  <ol class="steps">
+    <li>篩選後的項目依「<strong>分組代碼 × ATC 資訊</strong>」分群，各成一列。</li>
+    <li>同一分組代碼若跨多個 ATC，該分組結尾多一列「<strong>分組小計</strong>」（灰底粗體）。</li>
+    <li>排序：整組項目數為 0 的分組排最後，其餘依分組代碼由小到大。</li>
+  </ol>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>欄位</th><th>說明</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td class="k">項目數</td><td>支付價 ≠ 0 者，加上 0 元但不良品註記為 Y 者（規則同表二）</td></tr>
+      <tr><td class="k">分組項目總數（含 0 元）</td><td>該群全部列數，不做篩選</td></tr>
+      <tr><td class="k">支付價區間</td><td>相異支付價（<strong>含 0</strong>）由小到大，以「 / 」串接</td></tr>
+      <tr><td class="k">申報金額／數量分組總計</td><td>三個年度各一欄，已套 0 元歸零</td></tr>
+      <tr><td class="k">分組每月申報金額</td><td>當期年度金額 ÷ 12</td></tr>
+      <tr><td class="k">近三年平均申報量</td><td>依分組收載年排除未收載年度後平均</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout">
+    <strong>分頁 2 的支付價區間仍含 0。</strong>這裡是查核用的明細，需要看得到 0 元的存在；提案 Word 的表二是給委員看的對外文件，才把 0 隱去並改以備註說明。兩者刻意不同。
+  </div>
+
+  <div class="section-head"><h2>分頁 3 · 項目明細</h2><span class="meta">排除支付價 0 元</span></div>
+  <p class="prose">逐項列出，欄位含分組、ATC、CODE、藥品名稱、藥商、藥品分類、支付價、三年金額與數量、占率、適應症、藥價說明。</p>
+  <div class="pre-label">排序規則</div>
+<pre>調劑大類 ↑
+  → 分組代碼 ↑
+    → 支付價為 0 者置後
+      → 排序權重 ↓   <span class="c">// 依「分組代碼＋CODE 前 8 碼」加總當期金額，即許可證層級</span>
+        → 當期申報金額 ↓
+          → CODE ↑</pre>
+  <div class="callout">
+    <strong>占率的分母：</strong>AMT 占率＝該項目當期金額 ÷ <strong>整個分組</strong>當期金額總計；QTY 占率同理。分母含 0 元項目與未在本頁列出者，因此分頁 3 的占率不會加總為 100%。
+  </div>
+
+  <div class="section-head"><h2>分頁 4 · 項目明細（含 0 元）</h2></div>
+  <p class="prose">列出全部項目，包含支付價 0 元者，並額外呈現 <code>生效日期</code>（轉為民國 YYY-MM-DD）、<code>不良品暫停支付註記</code>、<code>不良品暫停支付前價格</code>，供查核 0 元項目的成因。排序規則與分頁 3 相同。</p>
+
+  <div class="section-head"><h2>四分頁報表的格式</h2></div>
+  <p class="prose">四個分頁皆已套用框線、表頭底色與凍結標題列，明細頁另附自動篩選。金額與數量欄套千分位格式、支付價欄保留必要小數，欄寬依內容自動估算，開檔即可直接閱讀或列印，不需再手動調整。</p>
+
+  <div class="section-head"><h2>提案附件 Excel</h2><span class="meta">另一個按鈕 · 固定 6 分頁</span></div>
+  <p class="prose">供 Word 說明二各項後方 <code>(P-)</code> 所指的紙本附件使用，版面依「專家提案附件」規格。與四分頁報表是兩份不同的檔案，但數字同源。</p>
+
+  <figure>
+    <svg viewBox="0 0 880 250" role="img" aria-label="提案附件的六個分頁，依 ATC 碼數由寬到窄，範圍呈巢狀包含">
+      <text x="16" y="24" class="s-lbl">六個分頁 · 範圍由寬到窄</text>
+
+      <rect x="16" y="36" width="700" height="30" class="s-box"/>
+      <text x="32" y="56" class="s-tm">ATC前1碼</text><text x="180" y="56" class="s-ts">例 R　→　所有呼吸系統用藥所屬的分組</text>
+
+      <rect x="16" y="72" width="580" height="30" class="s-box"/>
+      <text x="32" y="92" class="s-tm">ATC前3碼</text><text x="180" y="92" class="s-ts">例 R03</text>
+
+      <rect x="16" y="108" width="460" height="30" class="s-box"/>
+      <text x="32" y="128" class="s-tm">ATC前4碼</text><text x="180" y="128" class="s-ts">例 R03A</text>
+
+      <rect x="16" y="144" width="340" height="30" class="s-box"/>
+      <text x="32" y="164" class="s-tm">ATC前5碼</text><text x="180" y="164" class="s-ts">例 R03AC</text>
+
+      <rect x="16" y="180" width="240" height="30" class="s-box-a"/>
+      <text x="32" y="200" class="s-tm s-acc">ATC7碼</text><text x="180" y="200" class="s-ts">例 R03AC02</text>
+
+      <rect x="16" y="216" width="240" height="30" class="s-box-a"/>
+      <text x="32" y="236" class="s-tm s-acc">同分組</text>
+      <text x="272" y="236" class="s-ts">不看 ATC，直接取本案項目所屬分組的聯集</text>
+    </svg>
+    <figcaption><b>ATC 分頁是「項目層」清單，只收 ATC 本身相符的項目。</b>分頁標題就是「相同 ATC n 碼藥品清單」，因此<b>不做分組擴張</b> —— 這一點與 Word 表二不同：表二每一列是一個<b>分組</b>，所以要把整個分組的項目都納入統計；附件的 ATC 分頁每一列是一個<b>項目</b>，若也擴張就會混進 ATC 完全不同的藥。7 碼採全等比對，其餘採前綴；<code>ATC7碼</code>留白的項目不會出現在任何 ATC 分頁。<code>同分組</code>分頁才是分組層，收本案項目所屬分組的全部項目，也因此與 Word 表一、表二對得上。要產出哪幾張由介面勾選。</figcaption>
+  </figure>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>項目</th><th>設定</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td class="k">產出哪些分頁</td><td>由介面<strong>步驟 04 的核取方塊</strong>決定。「同分組」固定產出；<code>ATC前1碼</code>、<code>ATC前3碼</code> 預設<strong>不勾</strong>（範圍極大），<code>ATC前4碼</code>、<code>ATC前5碼</code>、<code>ATC7碼</code> 預設勾選。分頁編號依實際勾選連號</td></tr>
+      <tr class="hl"><td class="k">列出哪些項目</td><td>與 Word 表一、表二「項目數」、四分頁分頁 3 <strong>同一條規則</strong>：支付價 ≠ 0 者列出；支付價 ＝ 0 但 <code>不良品暫停支付註記 = 'Y'</code> 者也列出（支付價欄顯示「－」，不印 0）；支付價 ＝ 0 又沒有註記、或支付價欄位空白者<strong>不列出</strong></td></tr>
+      <tr class="hl"><td class="k">申報量／金額</td><td>一律採<strong>年度歸零後</strong>的值：支付價 ＝ 0 且有生效日期時，晚於生效民國年的年度歸零，生效年當年及更早照原值保留。所以 115 年才停付的項目，114 年資料完整保留；113 年停付者，114 年歸零</td></tr>
+      <tr class="hl"><td class="k">分組小計</td><td>本分頁<strong>納入範圍內</strong>該分組全部項目的加總，含依上述規則未列出的 0 元項目（那些項目的金額已先歸零）。<code>同分組</code>分頁的範圍就是整組，所以它的小計與 <strong>Word 表二「整組申報金額／申報量」、四分頁分頁 2「分組總計」是同一個數字</strong>；ATC 各分頁的範圍是 ATC 相符的項目，小計即該分組在本頁的部分。把可見列相加不會等於小計 —— 這是刻意的，小計要涵蓋未列出的 0 元項目。<strong>整列灰底</strong>，<strong>沒有總計列</strong></td></tr>
+      <tr class="hl"><td class="k">不印小計的情況</td><td>①該分組一列都沒印出（整組支付價皆為 0 且無不良品註記）→ 整個分組不出現；②分組代碼留白 → 那是一群各自獨立、未編分組的項目，照常列出但不印小計，並排序置於最後</td></tr>
+      <tr class="hl"><td class="k">分組代碼留白</td><td>主檔中院內調製品項（TPN、醫院用藥）的分組代碼可能是空白且筆數很多。這些空白值會被歸成同一個「空白分組」，<strong>絕不可用來擴張</strong>，否則一筆相符就會把主檔所有空白分組的品項全部拉進來。表一、表二、<code>同分組</code>分頁三處都已防護；表二<strong>不列出</strong>未編分組的項目 —— 表二是分組層的表，未編分組者不成一個分組；這些項目仍會依 ATC 出現在提案附件的 ATC 分頁（項目層清單）</td></tr>
+      <tr><td class="k">欄位</td><td>依附件規格排列，並於 <code>ATC7碼</code> <strong>右方新增「ATC名稱」欄</strong>；三個年度各有申報量與申報金額兩欄</td></tr>
+      <tr class="hl"><td class="k">灰底列</td><td><strong>各分組小計</strong>，最末再加一列總計。數字用<strong>0 元項目年度歸零後</strong>的金額與數量加總，與表一、表二、四分頁報表同源，因此各表必然一致</td></tr>
+      <tr><td class="k">排序</td><td>同分頁 3：調劑大類 ↑ → 分組代碼 ↑ → 支付價 0 元者置後 → 許可證層級加總金額 ↓ → 當期金額 ↓ → CODE ↑</td></tr>
+      <tr class="hl"><td class="k">分組代碼</td><td>置於 <strong>A 欄</strong>，螢幕上完整可見、可篩選可複製，但<strong>列印範圍由 B 欄起算</strong>，因此不會印出來</td></tr>
+      <tr><td class="k">列印</td><td>A4 <strong>橫向</strong>，寬度自動縮成一頁；前 3 列（標題／說明／欄名）凍結，且每頁重複列印</td></tr>
+      <tr class="hl"><td class="k">列高</td><td><code>ATC前1碼</code>、<code>ATC前3碼</code> 兩張<strong>鎖定固定列高</strong>，適應症等長欄位只顯示第一行、不隨內容把整列撐高；其餘四張維持自動列高。這兩張的項數動輒數千，鎖列高後列印頁數約可減半</td></tr>
+      <tr><td class="k">本案藥品</td><td>藥品名稱欄以淡藍底粗體標記</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><strong>為什麼不用「隱藏欄」：</strong>Excel 的隱藏欄在螢幕上也看不到，與「同仁審查時要用分組代碼」牴觸。改用「放在最左欄 + 列印範圍從 B 欄起算」，兩個需求可以同時成立。</div>
+
+</div></div>
+
+<!-- ══════════ 注意事項 ══════════ -->
+<div class="panel" id="p4"><div class="content">
+
+  <div class="section-head"><h2>與既有試算程式的差異</h2></div>
+  <p class="prose">本工具的計算結果已與既有試算程式逐步對拍。以下三處為<strong>刻意調整</strong>，會使少數案件的結果與過去不同，先行說明。</p>
+
+  <div class="callout warn">
+    <strong>一 · 級距邊界依法條改為「小於等於」</strong><br>
+    既有程式的判定式，讓每月申報金額恰好等於 500,000 或 1,000,000 時落到<strong>下一個</strong>級距；但支付標準條文寫的是「小於等於新臺幣五十萬元／一百萬元」。本工具依<strong>條文</strong>改為「小於等於」。
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 880 200" role="img" aria-label="金額恰好等於 500,000 時，既有程式歸右側級距、本工具歸左側級距">
+      <text x="16" y="36" class="s-lbl">既有程式</text>
+      <rect x="150" y="20" width="330" height="34" class="s-box"/>
+      <text x="315" y="42" text-anchor="middle" class="s-tms">加 20%</text>
+      <rect x="480" y="20" width="330" height="34" class="s-box"/>
+      <text x="645" y="42" text-anchor="middle" class="s-tms">加 10%</text>
+      <circle cx="480" cy="70" r="6" class="s-warn"/>
+      <line x1="480" y1="70" x2="540" y2="70" class="s-line-w" marker-end="url(#ahw)"/>
+      <text x="552" y="74" class="s-ts s-warn">恰好 500,000 落到右邊</text>
+
+      <text x="16" y="132" class="s-lbl">本工具</text>
+      <rect x="150" y="116" width="330" height="34" class="s-box"/>
+      <text x="315" y="138" text-anchor="middle" class="s-tms">加 20%</text>
+      <rect x="480" y="116" width="330" height="34" class="s-box"/>
+      <text x="645" y="138" text-anchor="middle" class="s-tms">加 10%</text>
+      <circle cx="480" cy="166" r="6" class="s-acc"/>
+      <line x1="480" y1="166" x2="420" y2="166" class="s-line-a" marker-end="url(#ahc)"/>
+      <text x="408" y="170" text-anchor="end" class="s-ts s-acc">恰好 500,000 留在左邊（依條文）</text>
+
+      <line x1="480" y1="58" x2="480" y2="82" class="s-line-d"/>
+      <line x1="480" y1="100" x2="480" y2="112" class="s-line-d"/>
+      <text x="480" y="96" text-anchor="middle" class="s-tms">500,000</text>
+    </svg>
+    <figcaption><b>只有金額恰好落在 500,000 或 1,000,000 的案件會有差異</b>，其餘案件兩者結果相同。</figcaption>
+  </figure>
+
+  <div class="callout warn">
+    <strong>二 · 級距判定所用的金額</strong><br>
+    既有程式在跨 ATC 的分組上，取該分組「第一筆 ATC 群組」的金額來判級距；本工具一律採<strong>整個分組代碼的金額總計</strong>。一個分組代碼只對應單一 ATC7 碼時兩者結果相同，僅在少數跨 ATC 分組會有差異。
+  </div>
+
+  <div class="callout warn">
+    <strong>三 · 小數誤差防護</strong><br>
+    既有程式直接對機器浮點值做無條件捨去，少數金額會因二進位表示誤差少算一分錢（例：成本 <code>3.8</code> 元加成 20%，正確為 <code>4.56</code>，既有程式得 <code>4.55</code>）。本工具在截斷前先清除機器誤差，取得數學上正確的結果。受影響的多為小數點後第二位的個位數差異。
+  </div>
+
+  <div class="section-head"><h2>驗證方式</h2></div>
+  <ol class="steps">
+    <li><strong>核價公式逐步對拍。</strong>成本法的四個步驟各自的中間值，與既有試算程式逐一比對，14 組測試值除小數誤差防護造成的差異外全數相符。</li>
+    <li><strong>十國藥價法手算驗證。</strong><code>218.75 × 1.2 = 262.5 → 262</code>；成本法 <code>130.55 × 1.5 = 195.825 → 195.82 × 1.0505 = 205.71 → 205</code>（領證）、<code>→ 195</code>（未領證）。</li>
+    <li><strong>0 元項目年度歸零。</strong>生效民國 111 年的項目，112～114 年金額與數量均歸零，逐筆檢核無誤。</li>
+    <li><strong>表二新規則檢核。</strong>以含「0 元且不良品註記 Y」的測試主檔驗證：項目數計入、支付價欄不出現 0、表下備註行數與分組數相符；<code>BOTH</code> 模式確實產出兩張表且編號連續。</li>
+    <li><strong>同 CODE 多列合併檢核。</strong>1 項藥品配 5 筆文號（僅第 1 列填值）：合併為 1 項，說明一列出 5 筆、表五 1 列、核價表 1 張；另測值填在第 2 列、文號重複、混填 <code>ATC_MODE</code> 等情形，取值與去重均正確。</li>
+    <li><strong>檔案實際開啟驗證。</strong>產出的 Word 與 Excel 以實際文書軟體開啟並轉為 PDF，檢查版面、編號連續性與合併儲存格；需求檔範本確認下拉選單與「填表說明」分頁正常。</li>
+    <li><strong>全流程自動化測試。</strong>上傳兩檔 → 預覽 → 產出 Word 與 Excel，確認無任何錯誤。</li>
+  </ol>
+
+  <div class="section-head"><h2>使用環境</h2></div>
+  <p class="prose">真正給同仁使用的是<strong>本機的單一 HTML 檔</strong>，用瀏覽器直接開啟即可，不需安裝、不需連外網路。線上預覽版受瀏覽器沙箱限制，<code>.xlsx</code> 下載可能被擋（提案附件與四分頁報表都是 <code>.xlsx</code>），僅供閱覽版面之用。</p>
+
+</div></div>
+
+<div class="foot">
+  本頁說明對應之工具版本：一份需求檔產出一份提案 Word（多項藥品合併）＋ 四分頁 Excel ＋ 提案附件 Excel（固定 6 分頁）。用語依「全民健康保險藥物給付項目及支付標準」，一律使用「項目」。
+</div>
+
+<script>
+function sw(i){
+  document.querySelectorAll('.tab').forEach(function(t,k){ t.classList.toggle('active', k===i); });
+  document.querySelectorAll('.panel').forEach(function(p,k){ p.classList.toggle('active', k===i); });
+  window.scrollTo({top:0,behavior:'instant'});
+}
+</script>
+
+</body>
+</html>

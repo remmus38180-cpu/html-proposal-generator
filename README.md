@@ -5,12 +5,15 @@
 ## 專案架構
 
 ```text
-proposal-studio-web/
-├── index.html               <-- 主介面與應用程式入口
-├── README.md
-├── assets/
-│   ├── js/
-│   │   ├── app.js           <-- 條件判斷與邏輯
-│   │   └── exporters/       <-- .xlsx / .docx / .pptx 匯出模組
-│   └── css/
-└── templates/               <-- 提案條件條文與 Layout 結構
+html-proposal-generator/
+├── index.html                    # 純前端 UI 入口 (支援路徑 A / 路徑 B 雙軌切換)
+├── docs/                         # 系統與輸入資料規格文件
+├── legacy/                       # 舊版單軌程式碼 (備份與重構比對用)
+└── assets/
+    └── js/
+        ├── app.js                # 主控邏輯與路徑狀態 (TRACK_A / TRACK_B) 切換
+        ├── parser.js             # 數據清洗 (浮點數 roundFloat 與空值修整)
+        ├── group-model.js        # [共用] 分頁 2~4 歷史申報/異動/十國藥價模型
+        ├── price-calc.js         # [路徑 B 獨有] 分頁 1 藥價核定與財務試算
+        └── exporters/            # SheetJS (.xlsx) 與 docx.js (.docx) 導出模組
+```

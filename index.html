@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>健保藥品調價試算產生器</title>
+<!-- 附錄A：IBM Plex Mono（英數）＋ Noto Sans TC（中文），離線時自動降階為系統字體 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#f2f5f5; --surface:#ffffff; --surface-2:#f7fafa;
+  --ink:#0d1a1c; --ink-2:#3c4e51; --muted:#66797c;
+  --line:#dbe4e4; --line-2:#c3d1d1;
+  --accent:#0d5f6d; --accent-ink:#ffffff; --accent-soft:#e0eff1; --accent-line:#a8ccd1;
+  --ok:#1f6b47; --ok-soft:#e2f1e9;
+  --warn:#8a5c0b; --warn-soft:#f7ecd6;
+  --bad:#9c332b; --bad-soft:#f8e5e3;
+  --radius:10px;
+  /* 附錄A 預設字族：英數等寬 + 中文思源，最後降階回系統等寬 */
+  --mono:'IBM Plex Mono','Noto Sans Mono CJK TC','Noto Sans TC','PingFang TC','Microsoft JhengHei',monospace;
+  --sans:'IBM Plex Mono','Noto Sans TC','PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+  --serif:'Noto Serif TC','Songti TC','PMingLiU',serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0b1214; --surface:#131c1e; --surface-2:#182325;
+    --ink:#e6eded; --ink-2:#b6c5c6; --muted:#87999b;
+    --line:#253436; --line-2:#33474a;
+    --accent:#4cb3c4; --accent-ink:#04191d; --accent-soft:#14313698; --accent-line:#2c565e;
+    --ok:#5fc490; --ok-soft:#13291f;
+    --warn:#d6a63f; --warn-soft:#2b2314;
+    --bad:#e0776b; --bad-soft:#2c1917;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0b1214; --surface:#131c1e; --surface-2:#182325;
+  --ink:#e6eded; --ink-2:#b6c5c6; --muted:#87999b;
+  --line:#253436; --line-2:#33474a;
+  --accent:#4cb3c4; --accent-ink:#04191d; --accent-soft:#14313698; --accent-line:#2c565e;
+  --ok:#5fc490; --ok-soft:#13291f;
+  --warn:#d6a63f; --warn-soft:#2b2314;
+  --bad:#e0776b; --bad-soft:#2c1917;
+}
+*{box-sizing:border-box}
+/* .field{display:flex} / .diag{display:grid} 這類作者樣式會蓋過瀏覽器預設的
+   [hidden]{display:none}，必須明確壓回去，否則 hidden 屬性完全無效 */
+[hidden]{display:none!important}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.7;
+  font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1060px;margin:0 auto;padding:32px 22px 80px;display:flex;flex-direction:column;gap:22px}
+
+.masthead{display:flex;flex-direction:column;gap:12px;padding-bottom:20px;border-bottom:2px solid var(--line-2)}
+.masthead h1{
+  font-family:var(--serif);font-weight:700;font-size:clamp(26px,4vw,36px);
+  margin:0;letter-spacing:.01em;text-wrap:balance;line-height:1.25;
+}
+.masthead p{margin:0;color:var(--ink-2);max-width:64ch}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;font-weight:500;letter-spacing:.04em;
+  padding:4px 10px;border-radius:99px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--ink-2);
+}
+.badge.on{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.badge.off{background:var(--bad-soft);border-color:transparent;color:var(--bad)}
+.dot{width:6px;height:6px;border-radius:99px;background:currentColor;flex:none}
+
+.step{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  display:grid;grid-template-columns:44px 1fr;overflow:hidden;
+}
+.step[hidden]{display:none}
+.step.locked{opacity:.5}
+.step-n{
+  background:var(--surface-2);border-right:1px solid var(--line);
+  display:flex;justify-content:center;padding-top:20px;
+  font-family:var(--mono);font-size:13px;color:var(--muted);
+}
+.step-body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.step h2{
+  font-family:var(--serif);font-size:18px;font-weight:600;margin:0;
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+}
+.step h2 small{font-family:var(--sans);font-size:12.5px;font-weight:400;color:var(--muted);letter-spacing:.02em}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field > label{font-size:13px;font-weight:500;color:var(--ink-2);letter-spacing:.02em}
+.field .hint{font-size:12.5px;color:var(--muted);line-height:1.6}
+.row{display:flex;gap:14px 18px;flex-wrap:wrap;align-items:flex-start}
+.row > .field{flex:1 1 260px;min-width:0}
+
+input[type=text],input[type=file],select{
+  width:100%;font-family:var(--mono);font-size:14px;color:var(--ink);
+  background:var(--surface-2);border:1px solid var(--line-2);border-radius:7px;
+  padding:9px 11px;font-variant-numeric:tabular-nums;
+}
+input[type=text]{letter-spacing:.06em}
+input[type=file]{padding:8px 10px;font-size:13px;cursor:pointer}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.file-state{font-size:12.5px;font-family:var(--mono);color:var(--muted);padding-top:2px}
+.file-state.ok{color:var(--ok)}
+.file-state.bad{color:var(--bad)}
+
+button{
+  font-family:inherit;font-size:14px;font-weight:500;
+  padding:9px 16px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);
+  transition:background .15s,border-color .15s;
+}
+button:hover:not(:disabled){background:var(--accent-soft);border-color:var(--accent-line)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.primary:hover:not(:disabled){filter:brightness(1.12);background:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap}
+.chk-row{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);
+  font-family:var(--mono);letter-spacing:.02em;cursor:pointer;user-select:none;
+  padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2)}
+.chk:hover{border-color:var(--accent)}
+.chk input{accent-color:var(--accent);cursor:pointer;margin:0}
+.chk.big{border-color:var(--warn)}
+
+/* ---- 路徑選擇 ---- */
+.tracks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.track{
+  display:flex;gap:11px;align-items:flex-start;padding:14px 15px;cursor:pointer;
+  border:1px solid var(--line-2);border-radius:8px;background:var(--surface-2);
+  transition:border-color .15s,background .15s;
+}
+.track:hover{border-color:var(--accent-line)}
+.track input{accent-color:var(--accent);cursor:pointer;margin:3px 0 0}
+.track b{font-family:var(--serif);font-size:15px;font-weight:600;display:block}
+.track span{font-size:12.5px;color:var(--muted);line-height:1.6;display:block;margin-top:3px}
+.track.sel{border-color:var(--accent);background:var(--accent-soft)}
+.track input:disabled ~ div{opacity:.55}
+
+.log{
+  font-family:var(--mono);font-size:12.5px;line-height:1.7;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:7px;
+  padding:12px 14px;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;
+  color:var(--ink-2);
+}
+.log:empty{display:none}
+.log .l-ok{color:var(--ok)}
+.log .l-bad{color:var(--bad)}
+.log .l-warn{color:var(--warn)}
+
+.diag{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.diag div{background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:3px}
+.diag dt{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.diag dd{margin:0;font-family:var(--mono);font-size:14px;color:var(--ink)}
+
+.prev{display:flex;flex-direction:column;gap:18px}
+.prev:empty{display:none}
+.case-card{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.case-hd{background:var(--surface-2);padding:11px 14px;border-bottom:1px solid var(--line);
+  display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.case-hd b{font-family:var(--serif);font-size:15px}
+.case-hd code{font-family:var(--mono);font-size:12.5px;color:var(--accent)}
+.case-bd{padding:14px;display:flex;flex-direction:column;gap:14px}
+.notes{font-size:12px;line-height:1.75;color:var(--muted);white-space:pre-wrap;
+  background:var(--surface-2);border-left:2px solid var(--accent-line);
+  padding:10px 12px;border-radius:0 6px 6px 0}
+.tbl-cap{font-size:12.5px;font-weight:500;color:var(--ink-2);letter-spacing:.02em}
+.tbl-note{font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.6}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--surface-2);font-weight:500;color:var(--ink-2);font-size:11.5px;letter-spacing:.04em}
+tr:last-child td{border-bottom:none}
+td.num{text-align:right;font-family:var(--mono)}
+tr.self td{background:var(--accent-soft);font-weight:500}
+
+.foot{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;line-height:1.7}
+.foot code{font-family:var(--mono);color:var(--ink-2)}
+@media (max-width:560px){
+  .step{grid-template-columns:1fr}
+  .step-n{border-right:none;border-bottom:1px solid var(--line);padding:8px 0;justify-content:flex-start;padding-left:22px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>健保藥品調價試算產生器</h1>
+    <p>雙軌分流：<b>路徑 A 背景查詢</b>只要藥品主檔，快速釐清藥品身份、同分組相似品與市場規模；<b>路徑 B 正式提案</b>再加上案件需求檔，產出提案 Word、四分頁 Excel 與提案附件。全部運算在瀏覽器內完成，不上傳任何資料。</p>
+    <div class="badges">
+      <span class="badge on" id="badgeVer"><span class="dot"></span>雙軌版 2026-09</span>
+      <span class="badge" id="badgeEngine"><span class="dot"></span>檢查解析引擎…</span>
+      <span class="badge" id="badgeTrack"><span class="dot"></span>尚未選擇路徑</span>
+      <span class="badge"><span class="dot"></span>零外部函式庫</span>
+    </div>
+  </header>
+
+  <section class="step">
+    <div class="step-n">01</div>
+    <div class="step-body">
+      <h2>載入藥品主檔 <small>支援 .xlsx 與 .csv</small></h2>
+      <div class="row">
+        <div class="field">
+          <label for="fMaster">藥品主檔（fMaster）</label>
+          <input type="file" id="fMaster" accept=".xlsx,.csv">
+          <span class="file-state" id="sMaster">尚未載入</span>
+          <span class="hint">必要欄位：<code>CODE</code>、<code>分組代碼</code>、<code>ATC7碼</code>、<code>PRICE{年月}</code>；
+            缺任一項會直接退回，請重新上傳。</span>
+        </div>
+      </div>
+      <div class="log" id="logBox"></div>
+    </div>
+  </section>
+
+  <section class="step" id="stepPy">
+    <div class="step-n">02</div>
+    <div class="step-body">
+      <h2>設定支付價年月 <small>[A1] 以此民國年設定當年度基準</small></h2>
+      <div class="row">
+        <div class="field" style="flex:0 1 280px">
+          <label for="pySelect">主檔偵測到的 PRICE 年月</label>
+          <select id="pySelect"><option value="">— 請先載入主檔 —</option></select>
+          <span class="hint">下拉為主檔實際存在的 <code>PRICE{民國年月}</code> 欄位。</span>
+        </div>
+        <div class="field" style="flex:0 1 220px">
+          <label for="priceYear">或直接輸入 YYYMM</label>
+          <input type="text" id="priceYear" placeholder="11508" maxlength="5" inputmode="numeric">
+          <span class="hint">115 年 8 月 → <code>11508</code>，須對應主檔 <code>PRICE11508</code> 欄。</span>
+        </div>
+      </div>
+      <div class="field" style="margin-top:4px">
+        <label>[A3] 主檔預設排除條件 <small style="font-weight:400;color:var(--muted)">在建立分組模型之前就篩掉，兩條路徑看到同一份母體</small></label>
+        <div class="chk-row">
+          <label class="chk"><input type="checkbox" id="exTpn" checked>排除 CODE 前 3 碼為 TPN</label>
+          <label class="chk"><input type="checkbox" id="exOff" checked>排除 不上網註記 ＝ Y</label>
+        </div>
+        <span class="hint">路徑 B 時，<b>本案需求檔內的 CODE 一律保留</b>，不受此排除影響。</span>
+      </div>
+
+      <dl class="diag" id="diagBox" hidden>
+        <div><dt>支付價欄位</dt><dd id="dPriceCol">—</dd></div>
+        <div><dt>近三年視窗</dt><dd id="dDataYear">—</dd></div>
+        <div><dt>主檔筆數</dt><dd id="dMasterN">—</dd></div>
+        <div><dt>已排除</dt><dd id="dExcl">—</dd></div>
+        <div><dt>[B8] 基準年</dt><dd id="dCutoff">—</dd></div>
+        <div><dt>本案藥品</dt><dd id="dCaseN">—</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="step" id="stepTrack" hidden>
+    <div class="step-n">03</div>
+    <div class="step-body">
+      <h2>選擇作業路徑</h2>
+      <div class="tracks">
+        <label class="track" id="trackA">
+          <input type="radio" name="track" value="PATH_A" id="rdA">
+          <div>
+            <b>路徑 A｜背景查詢</b>
+            <span>只用藥品主檔，產出 3 張查詢表（查詢摘要／同分組比較／同 ATC 相關品項）。
+              不做核價試算，不載入試算與 Word 模組。</span>
+          </div>
+        </label>
+        <label class="track" id="trackB">
+          <input type="radio" name="track" value="PATH_B" id="rdB">
+          <div>
+            <b>路徑 B｜正式提案</b>
+            <span>再加上案件需求檔，產出提案 Word ＋ 四分頁 Excel ＋ 提案附件 Excel。</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="field" id="casePanel" hidden style="margin-top:6px">
+        <label for="fCase">案件需求檔（fCase）</label>
+        <input type="file" id="fCase" accept=".xlsx,.csv">
+        <span class="file-state" id="sCase">尚未載入</span>
+        <span class="hint">一份檔＝一案。<b>每列必須有 CODE</b>，沒有 CODE 的列會被略過。
+          一項藥品有多筆來文時，把同一個 CODE 貼成多列、每列填一筆文號即可；<b>第 2 列起其他欄位都可留白</b>。</span>
+        <button id="btnTpl" type="button" style="align-self:flex-start;margin-top:6px">下載案件需求檔範本</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="stepFilter" hidden>
+    <div class="step-n">04</div>
+    <div class="step-body">
+      <h2>篩選範圍 <small id="filterHint">留空＝不篩選</small></h2>
+      <div class="row">
+        <div class="field"><label for="qAtc7">ATC7碼</label><input type="text" id="qAtc7" placeholder="B01AB"></div>
+        <div class="field"><label for="qGrpCd">分組代碼</label><input type="text" id="qGrpCd" placeholder=""></div>
+        <div class="field"><label for="qGrpNm">分組名稱</label><input type="text" id="qGrpNm" placeholder=""></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="qCode">CODE</label><input type="text" id="qCode" placeholder=""></div>
+        <div class="field"><label for="qBrand">藥品名稱</label><input type="text" id="qBrand" placeholder=""></div>
+      </div>
+      <span class="hint">多個值用空白或逗號分隔，任一命中即納入（前綴比對，如 <code>B01AB</code> 涵蓋 B01AB01～B01AB99）。</span>
+    </div>
+  </section>
+
+  <section class="step" id="stepOutA" hidden>
+    <div class="step-n">05</div>
+    <div class="step-body">
+      <h2>產出查詢表 <small>路徑 A ·  3 個工作表</small></h2>
+      <div class="btn-row">
+        <button id="btnQuery" class="primary" type="button" disabled>下載藥品背景查詢表</button>
+      </div>
+      <span class="hint">輸出不含 PRICE、廠商建議價、十國中位價、廠商成本、調高後支付價與財務衝擊；
+        保留分組層彙總（支付價區間、項目數、近三年平均申報量）。</span>
+    </div>
+  </section>
+
+  <section class="step" id="stepOutB" hidden>
+    <div class="step-n">05</div>
+    <div class="step-body">
+      <h2>核對與產出 <small>路徑 B · 預覽即為寫進 Word 的內容</small></h2>
+
+      <div class="field" style="margin-bottom:14px">
+        <label>提案附件 Excel 要產出哪些分頁</label>
+        <div class="chk-row">
+          <label class="chk"><input type="checkbox" id="atcL0" checked disabled>同分組<span style="color:var(--muted)">（固定產出）</span></label>
+          <label class="chk big"><input type="checkbox" id="atcL1">ATC前1碼</label>
+          <label class="chk big"><input type="checkbox" id="atcL3">ATC前3碼</label>
+          <label class="chk"><input type="checkbox" id="atcL4" checked>ATC前4碼</label>
+          <label class="chk"><input type="checkbox" id="atcL5" checked>ATC前5碼</label>
+          <label class="chk"><input type="checkbox" id="atcL7" checked>ATC7碼</label>
+        </div>
+        <span class="hint">碼數愈少範圍愈大。<b>ATC前1碼</b>等於整個 ATC 大分類，常達數千項目，預設不勾。</span>
+      </div>
+
+      <div class="btn-row">
+        <button id="btnPreview" type="button" disabled>產生預覽</button>
+        <button id="btnDocx" class="primary" type="button" disabled>下載提案 Word</button>
+        <button id="btnXlsx" type="button" disabled>下載四分頁 Excel</button>
+        <button id="btnAttach" type="button" disabled>下載提案附件 Excel</button>
+      </div>
+      <div class="prev" id="prevBox"></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p><b>雙軌分流：</b>路徑 A 只載入 <code>format-utils / parser / xlsx-writer / group-model / exporters</code>；
+      <code>price-calc.js</code>、<code>case-report.js</code>、<code>docx-writer.js</code>、<code>docx-report.js</code>、<code>template.js</code>
+      在選擇路徑 B 時才動態載入，路徑 A 不會誤觸試算邏輯。</p>
+    <p><b>共用核心：</b>兩條路徑用同一份 <code>buildGroupModel()</code>，[A2] 採計、[A3] 排除、[B5] 項目數、
+      [B6] 近三年平均申報量、[B7] 每月申報金額、[B8] 同成分同劑型收載年皆一次算好，數字必然一致。</p>
+    <p><b>零外部依賴：</b>自己解 <code>.xlsx</code>（<code>DecompressionStream</code> + XML 解析），自己組 <code>.docx</code> / <code>.xlsx</code>（自寫 ZIP 打包器 + OOXML）。除字型 CDN 外不連外網。</p>
+  </footer>
+</div>
+
+<!-- 路徑 A / B 共用模組（載入順序即相依順序） -->
+<script src="assets/js/format-utils.js"></script>
+<script src="assets/js/parser.js"></script>
+<script src="assets/js/xlsx-writer.js"></script>
+<script src="assets/js/group-model.js"></script>
+<script src="assets/js/exporters/sas-workbook.js"></script>
+<script src="assets/js/exporters/query-workbook.js"></script>
+<script src="assets/js/app.js"></script>
+</body></html>

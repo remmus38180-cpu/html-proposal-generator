@@ -16,7 +16,11 @@
 
 | 檔案 | 說明 |
 |---|---|
-| `case_template.html` | 主工具。**用瀏覽器直接開本機檔**（線上 Artifact 版被沙箱擋下載） |
+| `index.html` | 主工具（雙軌版）。**用瀏覽器直接開本機檔**，`assets/` 需與它同層 |
+| `assets/js/**` | 拆分後的模組，見 §7.2 |
+| `legacy/case_template.html` | 重構前的單軌單檔版，凍結供比對 |
+| `INTENT.md` | 雙軌分流架構重構規格 |
+| `藥品主檔資料處理原則.md` | 法規與資料處理規則 [A1]~[D20]，**計算規則的權威來源** |
 | `claude.md` | 本文件 |
 | `修正說明_請更換檔案.md` | 給同仁的修正通知（舊版已發布後補發） |
 | `資料邏輯說明.html` | 說明頁的單一 HTML 檔（與線上 Artifact 同內容，可離線開啟；字型改用系統預設） |
@@ -91,14 +95,24 @@
 `YR1 = YR3-2`、`YR2 = YR3-1`。
 > 例：`11504` → 基準年 115 → 近三年為民國 112、113、114。
 
-### 3.2 0 元項目的年度歸零
-`PRICE{年月} = 0` 且該列有 `生效日期` 時，**晚於生效民國年**的年度其 `QTY`、`AMT` 一律視為 0；生效年當年及更早照原值保留。
+### 3.2 0 元項目的年度歸零（[A2]）
+依 `不良品暫停支付註記` 與 `PRICE{年月}` 分四種情形：
+
+| 情形 | 條件 | 處理 |
+|---|---|---|
+| 1 | 註記 ＝ `Y` | 直接採計，**無年份邊界**（無論支付價為何） |
+| 2 | 註記 ≠ `Y` 且 支付價 ≠ 0 | 直接採計 |
+| 3 | 註記 ≠ `Y` 且 支付價 ＝ 0 | **晚於生效民國年**的年度其 `QTY`／`AMT` 視為 0；生效年當年及更早照原值保留 |
+| 4 | 註記 ≠ `Y` 且 支付價為空值 | 直接採計（費用內含於其他項目，不另核價但仍有申報量） |
+
 > 理由：項目可能 115 年某月才取消給付，114 年仍有真實申報資料。
+> ⚠️ 第 21 次改版前漏了情形 1 的判斷，不良品暫停支付項目被誤歸零，連帶影響 [B6]／[B7]／[C9]。
 
 ### 3.3 分組層彙總（以 `分組代碼` 為單位）
 - 三年 `AMT` / `QTY` 總計
 - **支付價區間**：相異 `PRICE{年月}`（**含 0**）由小到大，Excel 用 ` / `、Word 用 `、`
-- **項目數**：`PRICE ≠ 0` 計 1；`PRICE = 0` 但 `不良品暫停支付註記 = 'Y'` 也計 1；其餘不計
+- **項目數（[B5]）**：唯一不計入的情形是「註記 ≠ `Y` 且 `PRICE = 0`」。
+  亦即 `PRICE ≠ 0` 計 1；`PRICE = 0` 但註記 ＝ `Y` 計 1；**`PRICE` 為空值也計 1**（費用內含於其他項目者）
 - **分組項目總數**：該群全部列數（含 0 元）
 
 > 法規「全民健康保險藥物給付項目及支付標準」已將「品項」全面改為「項目」，**所有輸出用語一律用「項目」**。
@@ -145,10 +159,23 @@
 
 > 對外文件（Word、提案附件）支付價 0 一律顯示「－」；分頁 4 是內部查核用，保留原值。
 
-### 3.4 近三年平均申報量
-分組收載年 ＝ 該分組所有項目 `收載日期` 的**最小值**。
-三年視窗中**早於分組收載年的年度不納入**，平均只除以實際納入的年數。
+### 3.4 近三年平均申報量（[B6]）
+分組收載年 ＝ 該分組所有項目 `收載日期` 的**最小值**（完整 12 碼分組代碼）。
+三年視窗中**早於分組收載年的年度不納入**，分母固定為 3／2／1，**不因某年度全為 NULL 而縮減**。
 > 例：分組於民國 113 年收載，視窗 112～114 → 112 年不計，平均 ＝（113 量 ＋ 114 量）÷ 2。
+> ⚠️ 分組收載年**晚於**視窗最近一年（等同在當年度、也就是尚無完整 12 個月資料的那一年才收載）時，
+> 近三年均無申報資料，平均申報量為 **0**（輸出顯示 0，不是「－」），仍須列出。
+
+### 3.4.1 同成分同劑型收載年（[B8]）
+與 [B6] **粒度不同、必須各自獨立計算，不可合併**：
+
+- key ＝ 分組代碼**前 8 碼 ＋ 第 10、11 碼**（共 10 碼）。
+  排除第 9 碼（成分組成序號）與第 12 碼（規格量流水號），以涵蓋同成分同劑型的所有含量規格。
+- value ＝ 該 key 所有項目 `收載日期` 的最小年度。
+- 基準年（藥商銷售資料採計期間截止年）依 `price{年月}` 的**月份**判定：≥ 4 月取該民國年；< 4 月取前一年。
+- `基準年 − 同成分同劑型收載年 ≥ 15` → **第三 B 大類**（`row.cat3B` / `group.cat3B`）。
+
+依據：112 年 3 月 23 日修正之全民健康保險藥品價格調整作業辦法第 21 條。
 
 ### 3.5 同分組每月申報金額
 ＝ **該分組當期年度 `AMT` 總計 ÷ 12**。分子是整個分組所有項目加總，不是本案單一項目。
@@ -168,7 +195,21 @@
 
 同時決定 Word 註1／註2 引述的法條文字。
 
-### 4.2 浮點誤差防護 ⭐
+### 4.2 浮點誤差防護 ⭐（[C11]）
+
+分兩條路徑，**不可混用**：
+
+| 用途 | 函式 | 有效位數 |
+|---|---|---|
+| 價格截斷（[C12] 第 40 條、成本法步驟 2） | `truncatePrice()`／`truncate2()` | `toPrecision(10)`，依處理原則 |
+| 分組層金額／數量總計、級距判定 | `fpClean()`／`floorAt()` | `toPrecision(15)` |
+
+> 為何總計不能用 10 位：兆級申報金額的有效位數超過 10 位，`toPrecision(10)` 會把真實數值一起磨掉。
+>
+> ⚠️ 處理原則所附的參考碼只在**縮放前**清一次尾差，但 `Math.floor(v * 100)` 會再生一次
+> （`4.56 × 100 = 455.99999999999994`），導致 `3.8 × 1.2` 被誤截為 `4.55`。
+> 本實作在**縮放前後各清一次**（`floorScaled()`），結果為正解 `4.56`。
+
 
 ```js
 /* 只清第 15 位有效位數以後的雜訊，真實資料不受影響 */
@@ -215,13 +256,25 @@ step4  調高後支付價 = article40RoundDown(base)
 財務衝擊 = (調高後支付價 − 現行健保價) × 同分組近三年平均申報量
 ```
 
-### 4.7 金額顯示級距
+### 4.7 金額顯示級距（[D19]）
 
-| 範圍 | 顯示 | 範例 |
-|---|---|---|
-| < 10,000 | 完整數字 | `850`、`9,500` |
-| 10,000 ～ < 1億 | 「萬」，最多 1 位小數，尾 0 不顯示 | `1,001,000` → `100.1萬` |
-| ≥ 1億 | 「億」，最多 1 位小數 | `10,020,000,000` → `100.2億` |
+改依處理原則實作兩支函式：
+
+`chineseAmount2(v)` — 簡化顯示（`formatAmt()` 去掉尾字「元」後即為表格用）
+
+| 範圍 | 顯示 | 進位 | 範例 |
+|---|---|---|---|
+| < 1萬 | 實數加千分位 | 整數 | `823元` |
+| 1萬 ～ < 1,000萬 | 萬 | 小數 1 位 | `50,000` → `5.0萬` |
+| 1,000萬 ～ < 1億 | 億 | 小數 2 位 | `10,000,000` → `0.10億` |
+| 1億 ～ < 1,000億 | 億 | 小數 1 位 | `10,020,000,000` → `100.2億` |
+| 1,000億 ～ < 1兆 | 兆 | 小數 2 位 | `999,999,999,999` → `1.00兆` |
+| ≥ 1兆 | 兆 | 小數 1 位 | `1,500,000,000,000` → `1.5兆` |
+
+`chineseAmount(v, decimals=3, unit='元')` — 完整展開式，供正式文件／精確金額使用
+（`123,456,789` → `1億2,345萬6,789元`）。四分頁分頁 1 以 `chineseAmount(v, 0)` 呼叫。
+
+> ⚠️ 尾 0 現在**會顯示**（`5.0萬` 而非 `5萬`），這是處理原則規定的固定小數位。
 
 ### 4.8 占率位數（`adaptivePct`）
 `0 → '0%'`；`|v| ≥ 10 → 0 位`；`≥ 1 → 1 位`；`< 1 → 補到第一個有效數字`（例 `0.05%`）。
@@ -564,66 +617,78 @@ S {YR3}年申報量  T {YR3}年申報金額
 | 寫 `.docx` / `.xlsx` | 手寫 CRC32 ＋ ZIP 打包器（有 `CompressionStream` 就 deflate，否則 stored）＋ 手組 OOXML |
 | 讀 `.csv` | 自寫解析器（含 BOM、引號跳脫） |
 
-整份 HTML **沒有任何 `<script src>`**，離線可用。
+不依賴任何外部函式庫。第 21 次改版拆成多個 `.js` 後，`index.html` 以 `<script src>` 載入同目錄下的 `assets/js/**`（classic script，`file://` 直接開檔也能載入）。除 Google Fonts 外仍不連外網；字型連不到時自動降階為系統字體，功能不受影響。
 
 ### 7.2 原始碼結構
 
-> ⚠️ **給下次要改這支程式的人（一般使用者不必看這段）**
->
-> `build/` 是把 `case_template.html` 拆成幾個小檔（CSS、畫面、計算規則…）分開維護、最後再合併成單檔的做法。
-> **第 17 次改版沒有走這條路，是直接改在 `case_template.html` 上。**
-> 所以如果你手上的 `build/` 還是第 16 次改版的內容，**照下面的建置指令跑一次，會把第 17 次的修改整包蓋掉**。
->
-> **目前唯一正確、可以發布的版本就是 `case_template.html` 這一個檔。**
-> 要恢復分段開發，得先把 `case_template.html` 依下表的分界重新切回 `build/`，再繼續用建置指令。
+第 21 次改版把單檔 `case_template.html` 拆成 13 個模組。舊的 `build/` 分段合併流程**已廢止**，
+不要再用；`legacy/case_template.html` 是重構前的凍結副本，只供比對，不再維護。
 
-| 檔案 | 內容 |
-|---|---|
-| `part1.html` | CSS（含淺／深色主題 token） |
-| `part2.html` | 介面 HTML（四個步驟區塊）。「下載案件需求檔範本」按鈕位於**步驟 01「案件需求檔」上傳欄下方**；步驟 04 有四個按鈕：產生預覽／下載提案 Word／下載 SAS 四分頁 Excel／**下載提案附件 Excel** |
-| `part3a.js` | ZIP 讀寫、XLSX／CSV 解析 |
-| `part3b.js` | DOCX OOXML 產生器（`para`／**`segRuns`**／**`paraSeg`**／**`segCell`**／`tcell`／`docTable`／`docTableRaw`／`numberingXml`／`buildDocx`）＋ XLSX 寫出（`stylesXml`／`sheetXml`／`autoCols`／`buildXlsxBook`，**已支援 `landscape`／`fitToPage`／`printArea`／`printTitles`**） |
-| `part3e.js` | 計算規則（`fpClean`／`floorAt`／`article40RoundDown`／`a10RefPrice`／`costRefPrice`／`formatAmt`／`amtTier`／`buildGroupModel`） |
-| `part3c.js` | 業務組裝（`buildCaseReport`／`buildItemCalc`／`joinLetters`／`reportToDocx`／**`selfMark`**／**`pyLabel`**／**`t2RawRows`**／`T1H`／`T5H`） |
-| `part3f.js` | Excel 四分頁（`buildSasWorkbook`）＋ **提案附件（`attachSheet`／`grpCodesByAtcLen`／`buildAttachmentWorkbook`／`ATT_ATC_LEVELS`）** |
-| `part3d.js` | 介面事件、下載、預覽（含 `btnAttach`） |
+模組之間以**全域函式**互相呼叫（無打包步驟、無 ES module、無 bundler），
+`<script>` 的載入順序即相依順序。每個檔案開頭都是 `'use strict';`。
 
-**建置指令**（僅在 `build/` 已同步為當前版本時才可執行）
-```bash
-cd build
-# 線上 Artifact 版（不含 html/head/body 外殼）
-cat part1.html part2.html part3a.js part3b.js part3e.js part3c.js part3f.js part3d.js > ../artifact_page.html
-# 本機版
-{ echo '<!DOCTYPE html>'; echo '<html lang="zh-TW">'; echo '<head>';
-  echo '<meta charset="utf-8">'; echo '<meta name="viewport" content="width=device-width,initial-scale=1">';
-  cat part1.html; echo '</head>'; echo '<body>';
-  cat part2.html part3a.js part3b.js part3e.js part3c.js part3f.js part3d.js;
-  echo '</body></html>'; } > ../case_template.html
-```
+| 模組 | 內容 | 路徑 A | 路徑 B |
+|---|---|:--:|:--:|
+| `format-utils.js` | `esc`／`num`／`fmt`／`money`／`txt`／`ad8`／`toRocDate`／`fpClean`／`floorAt`／**`truncatePrice`**／**`truncate2`**／**`chineseAmount2`**／`chineseAmount`／`formatAmt`／`adaptivePct`／`drugClassLabel`／**`essentialLabel`**／`catLabel`／`catOrdinal`／`pyLabel` | ✅ | ✅ |
+| `parser.js` | ZIP 讀寫、XLSX／CSV 解析 | ✅ | ✅ |
+| `xlsx-writer.js` | `stylesXml`／`sheetXml`／`autoCols`／`buildXlsxBook`／`buildXlsx`／`styleForHeader`／`headRow`／`dataRow` | ✅ | ✅ |
+| `group-model.js` | `buildGroupModel`／`excludeMaster`／`resolveYearWindow`／**`parseDataRange`**／`countValid`／`isCounted`／`priceRange`／**`suspFlag`**／**`ingredientKey`** | ✅ | ✅ |
+| `app.js` | `DUAL_TRACK` 狀態、路徑分流、模組延遲載入、UI 事件 | ✅ | ✅ |
+| `exporters/sas-workbook.js` | `buildSasWorkbook`（分頁 1 以 `skipPriceCalc` 控制）／`parseFilter`／`passFilter` | ✅ | ✅ |
+| `exporters/query-workbook.js` | `buildQueryWorkbook`（路徑 A 的 3 分頁查詢表） | ✅ | ❌ |
+| `price-calc.js` | `article40RoundDown`／`a10RefPrice`／`costRefPrice`／`amtTier`／`buildPriceCalc`／`parsePcts`／加成級距常數 | ❌ | ✅ |
+| `case-report.js` | `buildCaseReport`／`buildItemCalc`／`mergeCaseRowsByCode`／`joinLetters`／`selfMark`／`T1H`／`T5H`／`calcTableRows` | ❌ | ✅ |
+| `docx-writer.js` | DOCX OOXML 引擎（`para`／`segRuns`／`tcell`／`docTable`／`docTableRaw`／`numberingXml`／`buildDocx`） | ❌ | ✅ |
+| `exporters/docx-report.js` | `reportToDocx`／`t2RawRows` | ❌ | ✅ |
+| `exporters/attachment-workbook.js` | `buildAttachmentWorkbook`／`attachSheet`／`atcRowsByLen` | ❌ | ✅ |
+| `template.js` | 案件需求檔範本 `TPL`／`tplHelpSheet` | ❌ | ✅ |
 
-**由單檔抽出 core.js 做 Node 測試**（本次採用的方式，不需要 `build/`）
-```bash
-python3 - <<'EOF'
-s=open('case_template.html',encoding='utf-8').read().split('\n')
-end=[i for i,l in enumerate(s) if '5. 介面' in l][0]-2   # 取到介面段之前
-open('core.js','w',encoding='utf-8').write('\n'.join(s[269:end])
-  + "\nmodule.exports={buildGroupModel,buildCaseReport,reportToDocx,"
-    "buildSasWorkbook,buildAttachmentWorkbook,resolveYearWindow,pyLabel};\n")
-EOF
-```
+**載入策略**：`index.html` 靜態載入前 7 個（路徑 A 需要的全部）；標記 ❌ 的 6 個模組
+在使用者**選擇路徑 B 時才由 `loadPathBModules()` 動態注入**（依序注入，`async=false`）。
+因此路徑 A 的頁面上不存在 `price-calc.js`／`case-report.js`／`docx-writer.js`／`docx-report.js`，
+無法誤觸試算邏輯 —— 這是 INTENT「架構約束」的實作方式。
 
 **測試**
 ```bash
-# 邏輯 + 檔案產出（Node）
-{ sed '1,2d' part3a.js; cat part3b.js part3e.js part3c.js part3f.js; } > core.js
-node sastest2.mjs
-# 端對端（Playwright，含真的上傳 xlsx、按按鈕、抓 console error）
-node uitest.mjs
+# 邏輯 + 檔案產出（Node，用 vm 依序載入模組，不需 build 步驟）
+node smoke.mjs
+# 端對端（Playwright，真的上傳 xlsx、按按鈕、抓 console error 與下載）
+node ui.mjs
 # 版面檢查
 soffice --headless --convert-to pdf out.docx --outdir conv && pdftoppm -png -r 78 conv/out.pdf conv/pg
 ```
 
+### 7.2.1 雙軌狀態機（`DUAL_TRACK`）
+
+```javascript
+DUAL_TRACK = {
+  path: null,                  // 'PATH_A' | 'PATH_B'
+  priceYearMonth: null,        // '11508'
+  masterData: { parsed, model, exclusions:{tpn,offnet}, priceCols },
+  pathA:      { sheets:{sheet1,sheet2,sheet3} },
+  pathB:      { caseData, targets, outputs:{word,xlsxMain,xlsxAttach} }
+};
+```
+
+**操作流程**：上傳 fMaster →（缺 `CODE`／`分組代碼`／`ATC7碼`／`PRICE{年月}` 之一即退回）
+→ 掃描 `PRICE{年月}` 欄位列成下拉 → 選年月（欄位不存在則不解鎖）→ 選路徑
+→ 路徑 B 才出現 fCase 上傳區 → 產出。
+
+**清空規則**
+
+| 事件 | 清空 | 保留 |
+|---|---|---|
+| 上傳新 fMaster | `DUAL_TRACK` 全部 | 無 |
+| 改選 price 年月 | `masterData.model`／`pathA`／`pathB` 產出 | 兩個檔案本身 |
+| 切換 A → B | `pathA.sheets` | `masterData` |
+| 切換 B → A | `pathB` 全部（**先跳確認對話框**） | `masterData` |
+| 上傳新 fCase | `pathB.outputs` | `masterData`＋`pathB.caseData` |
+
+> ⚠️ 路徑 A 沒有案件需求檔，`excludeMaster()` 的 `keepCodes` 為空；
+> 路徑 B 則保留本案 CODE。這是兩條路徑母體唯一可能不同之處，切換路徑時模型會重算。
+
 ### 7.3 下載機制
+
 本機開檔用 `<a download>`；線上 Artifact 版走 `claude.use('downloads')` 能力。
 線上版拿不到能力時會顯示紅色徽章提示改用本機檔。
 `.xlsx` 在線上版不被允許 → 範本自動降級為 `.csv`；**四分頁報表與提案附件無降級路徑**，線上版會直接失敗，必須用本機檔。
@@ -702,6 +767,7 @@ soffice --headless --convert-to pdf out.docx --outdir conv && pdftoppm -png -r 7
 
 | 會話 | 內容 |
 |---|---|
+| 21 | **雙軌分流架構重構**：拆成 13 個模組（`index.html` + `assets/js/**`），新增路徑 A 背景查詢（3 分頁查詢表）與 `DUAL_TRACK` 狀態機，路徑 B 模組改為選路徑後才動態載入；`buildSasWorkbook` 分頁 1 改由 `skipPriceCalc` 控制。**規則修正**：[A2] 年度歸零補上不良品暫停支付註記判斷、[B5] 支付價空值改計入項目數、[B6] 收載年晚於視窗時平均量由 `null` 改 0、[B8] 新增同成分同劑型收載年與第三 B 大類判定、[A1] 改讀 `最新申報年度資料範圍`、[C11] 價格截斷改 `toPrecision(10)` 並修正縮放後尾差、[D15] 補「2＝生物製劑」、[D17] 必要藥品代碼改輸出意義、[D19] 改用處理原則的 `chineseAmount2`／`chineseAmount`；`[hidden]` 被作者樣式蓋過導致無效的 CSS bug |
 | 9 | 全面重寫，移除 CDN 依賴（舊版 `XLSX.js` 載不到就整個失效），自寫 ZIP／OOXML |
 | 10 | 移植 SAS 報表規則：第40條、成本法領證加計、金額級距、近三年平均、0元歸零、占率、排序 |
 | 11 | 依「表格修改說明.pdf」改版：一份需求檔＝一案、Word 格式與真編號、說明一/二改寫、核價試算表改直向小表 |
@@ -716,4 +782,4 @@ soffice --headless --convert-to pdf out.docx --outdir conv && pdftoppm -png -r 7
 | 16 | 同 `CODE` 多列合併（一項藥品多筆來文）；用語全面改「項目」；表1 占率移至整組申報金額右；表2 欄名改「同分組項目數」、支付價不顯示 0 元＋暫停支付備註；`ATC_MODE` 加 `BOTH`（表2 出兩張表）＋範本下拉選單與「填表說明」分頁；範本按鈕移至步驟 01 |
 
 ---
-最後更新：2026-08-28（第 17 次改版）
+最後更新：2026-09-02（第 21 次改版 · 雙軌分流）

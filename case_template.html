@@ -1172,6 +1172,19 @@ function atcInfo(d){
   var a = atcOf(d), n = txt(d['ATC名稱']).toLowerCase();
   return a ? ('[' + a + '] ' + n) : n;
 }
+/* --- 不良品暫停支付註記（當月欄位無年月後綴） --- */
+function suspFlag(d){
+  return String(d['不良品暫停支付註記'] || '').trim().toUpperCase() === 'Y';
+}
+/* [B8] 同成分同劑型 key：分組代碼前8碼（ATC前3＋主成分英文前3＋主成分流水號＋活性成分數）
+   ＋第10、11碼（核價劑型碼），共10碼。
+   刻意排除第9碼（成分組成序號／含量流水號）與第12碼（規格量流水號），
+   以涵蓋同成分同劑型之所有含量規格。與 [B6] 的完整12碼分組是兩套獨立粒度，不可合併。 */
+function ingredientKey(v){
+  var s = txt(v);
+  if (s.length < 11) return '';
+  return s.substring(0,8) + s.substring(9,11);
+}
 /* --- 支付價區間（含0元，SAS：distinct 排序、' / ' 串接、非整數去尾零） --- */
 function priceRange(items, priceCol, sep, skipZero){
   var seen = {}, out = [];
@@ -1196,20 +1209,45 @@ function buildGroupModel(master, priceYear, yr3){
   var YR1 = YR3-2, YR2 = YR3-1;
   var i, k;
 
-  /* 逐列：0元項目的年度調整 */
+  /* [A2] 逐列：0元項目的年度歸零
+     情形1 不良品暫停支付註記 = 'Y'          → 直接採計，無年份邊界（無論支付價為何）
+     情形2 註記 ≠ 'Y' 且 支付價 ≠ 0          → 直接採計
+     情形3 註記 ≠ 'Y' 且 支付價 = 0          → 年份 ≤ 生效年 採計，大於者歸零
+     情形4 註記 ≠ 'Y' 且 支付價為空值        → 直接採計（費用內含於其他項目，無價仍有申報量） */
   var rows = master.map(function(d){
     var p = num(d[priceCol]);
     var eff = ad8(d['生效日期']);
+    var susp = suspFlag(d);
     var q = [num(d['QTY'+YR1])||0, num(d['QTY'+YR2])||0, num(d['QTY'+YR3])||0];
     var a = [num(d['AMT'+YR1])||0, num(d['AMT'+YR2])||0, num(d['AMT'+YR3])||0];
     var qa = q.slice(), aa = a.slice();
-    if (p === 0 && eff !== null){
+    if (!susp && p === 0 && eff !== null){
       var yrs = [YR1,YR2,YR3];
       for (var j=0;j<3;j++) if (!(yrs[j] <= eff)){ qa[j] = 0; aa[j] = 0; }
     }
-    return {d:d, price:p, code:txt(d['CODE']), grp:txt(d['分組代碼']),
+    return {d:d, price:p, susp:susp, code:txt(d['CODE']), grp:txt(d['分組代碼']),
+            ingKey:ingredientKey(d['分組代碼']),
             qty:q, amt:a, qtyAdj:qa, amtAdj:aa};
   });
+
+  /* [B8] 同成分同劑型收載年（10碼 key，與 [B6] 的12碼分組各自獨立 GROUP BY）
+     基準年（藥商銷售資料採計期間截止年）：price 年月之月份 ≥ 4 → 該民國年；< 4 → 該民國年 − 1
+     基準年 − 同成分同劑型收載年 ≥ 15 → 第三B大類 */
+  var mm = parseInt(priceYear.substring(3,5),10);
+  var cutoffYear = (isNaN(mm) || mm >= 4) ? baseYear : baseYear - 1;
+  var ING = {};
+  for (i=0;i<rows.length;i++){
+    var ik = rows[i].ingKey;
+    if (!ik) continue;
+    var iy = ad8(rows[i].d['收載日期']);
+    if (iy === null) continue;
+    if (ING[ik] === undefined || iy < ING[ik]) ING[ik] = iy;
+  }
+  for (i=0;i<rows.length;i++){
+    var y8 = (rows[i].ingKey && ING[rows[i].ingKey] !== undefined) ? ING[rows[i].ingKey] : null;
+    rows[i].ingListYear = y8;
+    rows[i].cat3B = (y8 === null) ? null : (cutoffYear - y8 >= 15);
+  }
 
   /* 依分組代碼彙總 */
   var G = {}, gOrder = [];
@@ -1242,11 +1280,16 @@ function buildGroupModel(master, priceYear, yr3){
     gg.cnt = 0;
     for (k=0;k<gg.rows.length;k++) if (gg.rows[k].price !== null && gg.rows[k].price !== 0) gg.cnt++;
     gg.total = gg.rows.length;
+    /* [B8] 同一分組代碼之所有項目共用同一個10碼 key，取第一列即可 */
+    gg.ingKey      = gg.rows[0].ingKey;
+    gg.ingListYear = gg.rows[0].ingListYear;
+    gg.cat3B       = gg.rows[0].cat3B;
   }
   var byCode = {};
   for (i=0;i<rows.length;i++) byCode[rows[i].code] = rows[i];
 
   return {baseYear:baseYear, priceCol:priceCol, YR1:YR1, YR2:YR2, YR3:YR3,
+          cutoffYear:cutoffYear, ingYears:ING,
           rows:rows, groups:G, gOrder:gOrder, byCode:byCode, yrs:yrs};
 }
 
@@ -1340,7 +1383,7 @@ function countValid(items, priceCol){
   for (var i=0;i<items.length;i++){
     var p = items[i][priceCol];
     var v = num(p);
-    if (v === 0) { if (String(items[i]['不良品暫停支付註記']||'').trim().toUpperCase() === 'Y') n++; }
+    if (v === 0) { if (suspFlag(items[i])) n++; }
     else if (v !== null) n++;
   }
   return n;
@@ -1349,8 +1392,7 @@ function countValid(items, priceCol){
 function countSuspended(items, priceCol){
   var n = 0;
   for (var i=0;i<items.length;i++){
-    if (num(items[i][priceCol]) === 0
-        && String(items[i]['不良品暫停支付註記']||'').trim().toUpperCase() === 'Y') n++;
+    if (num(items[i][priceCol]) === 0 && suspFlag(items[i])) n++;
   }
   return n;
 }
@@ -1359,8 +1401,7 @@ function countSuspended(items, priceCol){
    注意：這條規則只決定「哪些列要列出／計數」，
    金額與數量的採計一律走 amtAdj／qtyAdj（依支付價與生效日期做年度歸零），兩者互不影響。 */
 function isCounted(r){
-  if (r.price === 0)
-    return String(r.d['不良品暫停支付註記'] || '').trim().toUpperCase() === 'Y';
+  if (r.price === 0) return suspFlag(r.d);
   return r.price !== null;
 }
 function priceList(items, priceCol){

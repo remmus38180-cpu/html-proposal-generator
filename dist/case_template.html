@@ -1,0 +1,3631 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>健保藥品調價試算產生器</title>
+<!-- 附錄A：IBM Plex Mono（英數）＋ Noto Sans TC（中文），離線時自動降階為系統字體 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#f2f5f5; --surface:#ffffff; --surface-2:#f7fafa;
+  --ink:#0d1a1c; --ink-2:#3c4e51; --muted:#66797c;
+  --line:#dbe4e4; --line-2:#c3d1d1;
+  --accent:#0d5f6d; --accent-ink:#ffffff; --accent-soft:#e0eff1; --accent-line:#a8ccd1;
+  --ok:#1f6b47; --ok-soft:#e2f1e9;
+  --warn:#8a5c0b; --warn-soft:#f7ecd6;
+  --bad:#9c332b; --bad-soft:#f8e5e3;
+  --radius:10px;
+  /* 附錄A 預設字族：英數等寬 + 中文思源，最後降階回系統等寬 */
+  --mono:'IBM Plex Mono','Noto Sans Mono CJK TC','Noto Sans TC','PingFang TC','Microsoft JhengHei',monospace;
+  --sans:'IBM Plex Mono','Noto Sans TC','PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+  --serif:'Noto Serif TC','Songti TC','PMingLiU',serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0b1214; --surface:#131c1e; --surface-2:#182325;
+    --ink:#e6eded; --ink-2:#b6c5c6; --muted:#87999b;
+    --line:#253436; --line-2:#33474a;
+    --accent:#4cb3c4; --accent-ink:#04191d; --accent-soft:#14313698; --accent-line:#2c565e;
+    --ok:#5fc490; --ok-soft:#13291f;
+    --warn:#d6a63f; --warn-soft:#2b2314;
+    --bad:#e0776b; --bad-soft:#2c1917;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0b1214; --surface:#131c1e; --surface-2:#182325;
+  --ink:#e6eded; --ink-2:#b6c5c6; --muted:#87999b;
+  --line:#253436; --line-2:#33474a;
+  --accent:#4cb3c4; --accent-ink:#04191d; --accent-soft:#14313698; --accent-line:#2c565e;
+  --ok:#5fc490; --ok-soft:#13291f;
+  --warn:#d6a63f; --warn-soft:#2b2314;
+  --bad:#e0776b; --bad-soft:#2c1917;
+}
+*{box-sizing:border-box}
+/* .field{display:flex} / .diag{display:grid} 這類作者樣式會蓋過瀏覽器預設的
+   [hidden]{display:none}，必須明確壓回去，否則 hidden 屬性完全無效 */
+[hidden]{display:none!important}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.7;
+  font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1060px;margin:0 auto;padding:32px 22px 80px;display:flex;flex-direction:column;gap:22px}
+
+.masthead{display:flex;flex-direction:column;gap:12px;padding-bottom:20px;border-bottom:2px solid var(--line-2)}
+.masthead h1{
+  font-family:var(--serif);font-weight:700;font-size:clamp(26px,4vw,36px);
+  margin:0;letter-spacing:.01em;text-wrap:balance;line-height:1.25;
+}
+.masthead p{margin:0;color:var(--ink-2);max-width:64ch}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;font-weight:500;letter-spacing:.04em;
+  padding:4px 10px;border-radius:99px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--ink-2);
+}
+.badge.on{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.badge.off{background:var(--bad-soft);border-color:transparent;color:var(--bad)}
+.dot{width:6px;height:6px;border-radius:99px;background:currentColor;flex:none}
+
+.step{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  display:grid;grid-template-columns:44px 1fr;overflow:hidden;
+}
+.step[hidden]{display:none}
+.step.locked{opacity:.5}
+.step-n{
+  background:var(--surface-2);border-right:1px solid var(--line);
+  display:flex;justify-content:center;padding-top:20px;
+  font-family:var(--mono);font-size:13px;color:var(--muted);
+}
+.step-body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.step h2{
+  font-family:var(--serif);font-size:18px;font-weight:600;margin:0;
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+}
+.step h2 small{font-family:var(--sans);font-size:12.5px;font-weight:400;color:var(--muted);letter-spacing:.02em}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field > label{font-size:13px;font-weight:500;color:var(--ink-2);letter-spacing:.02em}
+.field .hint{font-size:12.5px;color:var(--muted);line-height:1.6}
+.row{display:flex;gap:14px 18px;flex-wrap:wrap;align-items:flex-start}
+.row > .field{flex:1 1 260px;min-width:0}
+
+input[type=text],input[type=file],select{
+  width:100%;font-family:var(--mono);font-size:14px;color:var(--ink);
+  background:var(--surface-2);border:1px solid var(--line-2);border-radius:7px;
+  padding:9px 11px;font-variant-numeric:tabular-nums;
+}
+input[type=text]{letter-spacing:.06em}
+input[type=file]{padding:8px 10px;font-size:13px;cursor:pointer}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.file-state{font-size:12.5px;font-family:var(--mono);color:var(--muted);padding-top:2px}
+.file-state.ok{color:var(--ok)}
+.file-state.bad{color:var(--bad)}
+
+button{
+  font-family:inherit;font-size:14px;font-weight:500;
+  padding:9px 16px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);
+  transition:background .15s,border-color .15s;
+}
+button:hover:not(:disabled){background:var(--accent-soft);border-color:var(--accent-line)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.primary:hover:not(:disabled){filter:brightness(1.12);background:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap}
+.chk-row{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);
+  font-family:var(--mono);letter-spacing:.02em;cursor:pointer;user-select:none;
+  padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2)}
+.chk:hover{border-color:var(--accent)}
+.chk input{accent-color:var(--accent);cursor:pointer;margin:0}
+.chk.big{border-color:var(--warn)}
+
+/* ---- 路徑選擇 ---- */
+.tracks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.track{
+  display:flex;gap:11px;align-items:flex-start;padding:14px 15px;cursor:pointer;
+  border:1px solid var(--line-2);border-radius:8px;background:var(--surface-2);
+  transition:border-color .15s,background .15s;
+}
+.track:hover{border-color:var(--accent-line)}
+.track input{accent-color:var(--accent);cursor:pointer;margin:3px 0 0}
+.track b{font-family:var(--serif);font-size:15px;font-weight:600;display:block}
+.track span{font-size:12.5px;color:var(--muted);line-height:1.6;display:block;margin-top:3px}
+.track.sel{border-color:var(--accent);background:var(--accent-soft)}
+.track input:disabled ~ div{opacity:.55}
+
+.log{
+  font-family:var(--mono);font-size:12.5px;line-height:1.7;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:7px;
+  padding:12px 14px;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;
+  color:var(--ink-2);
+}
+.log:empty{display:none}
+.log .l-ok{color:var(--ok)}
+.log .l-bad{color:var(--bad)}
+.log .l-warn{color:var(--warn)}
+
+.diag{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.diag div{background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:3px}
+.diag dt{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.diag dd{margin:0;font-family:var(--mono);font-size:14px;color:var(--ink)}
+
+.prev{display:flex;flex-direction:column;gap:18px}
+.prev:empty{display:none}
+.case-card{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.case-hd{background:var(--surface-2);padding:11px 14px;border-bottom:1px solid var(--line);
+  display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.case-hd b{font-family:var(--serif);font-size:15px}
+.case-hd code{font-family:var(--mono);font-size:12.5px;color:var(--accent)}
+.case-bd{padding:14px;display:flex;flex-direction:column;gap:14px}
+.notes{font-size:12px;line-height:1.75;color:var(--muted);white-space:pre-wrap;
+  background:var(--surface-2);border-left:2px solid var(--accent-line);
+  padding:10px 12px;border-radius:0 6px 6px 0}
+.tbl-cap{font-size:12.5px;font-weight:500;color:var(--ink-2);letter-spacing:.02em}
+.tbl-note{font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.6}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--surface-2);font-weight:500;color:var(--ink-2);font-size:11.5px;letter-spacing:.04em}
+tr:last-child td{border-bottom:none}
+td.num{text-align:right;font-family:var(--mono)}
+tr.self td{background:var(--accent-soft);font-weight:500}
+
+.foot{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;line-height:1.7}
+.foot code{font-family:var(--mono);color:var(--ink-2)}
+@media (max-width:560px){
+  .step{grid-template-columns:1fr}
+  .step-n{border-right:none;border-bottom:1px solid var(--line);padding:8px 0;justify-content:flex-start;padding-left:22px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>健保藥品調價試算產生器</h1>
+    <p>雙軌分流：<b>路徑 A 背景查詢</b>只要藥品主檔，快速釐清藥品身份、同分組相似品與市場規模；<b>路徑 B 正式提案</b>再加上案件需求檔，產出提案 Word、四分頁 Excel 與提案附件。全部運算在瀏覽器內完成，不上傳任何資料。</p>
+    <div class="badges">
+      <span class="badge on" id="badgeVer"><span class="dot"></span>雙軌單檔版 2026-09-02</span>
+      <span class="badge" id="badgeEngine"><span class="dot"></span>檢查解析引擎…</span>
+      <span class="badge" id="badgeTrack"><span class="dot"></span>尚未選擇路徑</span>
+      <span class="badge"><span class="dot"></span>零外部函式庫</span>
+    </div>
+  </header>
+
+  <section class="step">
+    <div class="step-n">01</div>
+    <div class="step-body">
+      <h2>載入藥品主檔 <small>支援 .xlsx 與 .csv</small></h2>
+      <div class="row">
+        <div class="field">
+          <label for="fMaster">藥品主檔（fMaster）</label>
+          <input type="file" id="fMaster" accept=".xlsx,.csv">
+          <span class="file-state" id="sMaster">尚未載入</span>
+          <span class="hint">必要欄位：<code>CODE</code>、<code>分組代碼</code>、<code>ATC7碼</code>、<code>PRICE{年月}</code>；
+            缺任一項會直接退回，請重新上傳。</span>
+        </div>
+      </div>
+      <div class="log" id="logBox"></div>
+    </div>
+  </section>
+
+  <section class="step" id="stepPy">
+    <div class="step-n">02</div>
+    <div class="step-body">
+      <h2>設定支付價年月 <small>[A1] 以此民國年設定當年度基準</small></h2>
+      <div class="row">
+        <div class="field" style="flex:0 1 280px">
+          <label for="pySelect">主檔偵測到的 PRICE 年月</label>
+          <select id="pySelect"><option value="">— 請先載入主檔 —</option></select>
+          <span class="hint">下拉為主檔實際存在的 <code>PRICE{民國年月}</code> 欄位。</span>
+        </div>
+        <div class="field" style="flex:0 1 220px">
+          <label for="priceYear">或直接輸入 YYYMM</label>
+          <input type="text" id="priceYear" placeholder="11508" maxlength="5" inputmode="numeric">
+          <span class="hint">115 年 8 月 → <code>11508</code>，須對應主檔 <code>PRICE11508</code> 欄。</span>
+        </div>
+      </div>
+      <div class="field" style="margin-top:4px">
+        <label>[A3] 主檔預設排除條件 <small style="font-weight:400;color:var(--muted)">在建立分組模型之前就篩掉，兩條路徑看到同一份母體</small></label>
+        <div class="chk-row">
+          <label class="chk"><input type="checkbox" id="exTpn" checked>排除 CODE 前 3 碼為 TPN</label>
+          <label class="chk"><input type="checkbox" id="exOff" checked>排除 不上網註記 ＝ Y</label>
+        </div>
+        <span class="hint">路徑 B 時，<b>本案需求檔內的 CODE 一律保留</b>，不受此排除影響。</span>
+      </div>
+
+      <dl class="diag" id="diagBox" hidden>
+        <div><dt>支付價欄位</dt><dd id="dPriceCol">—</dd></div>
+        <div><dt>近三年視窗</dt><dd id="dDataYear">—</dd></div>
+        <div><dt>主檔筆數</dt><dd id="dMasterN">—</dd></div>
+        <div><dt>已排除</dt><dd id="dExcl">—</dd></div>
+        <div><dt>[B8] 基準年</dt><dd id="dCutoff">—</dd></div>
+        <div><dt>本案藥品</dt><dd id="dCaseN">—</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="step" id="stepTrack" hidden>
+    <div class="step-n">03</div>
+    <div class="step-body">
+      <h2>選擇作業路徑</h2>
+      <div class="tracks">
+        <label class="track" id="trackA">
+          <input type="radio" name="track" value="PATH_A" id="rdA">
+          <div>
+            <b>路徑 A｜背景查詢</b>
+            <span>只用藥品主檔，產出 3 張查詢表（查詢摘要／同分組比較／同 ATC 相關品項）。
+              不做核價試算，不載入試算與 Word 模組。</span>
+          </div>
+        </label>
+        <label class="track" id="trackB">
+          <input type="radio" name="track" value="PATH_B" id="rdB">
+          <div>
+            <b>路徑 B｜正式提案</b>
+            <span>再加上案件需求檔，產出提案 Word ＋ 四分頁 Excel ＋ 提案附件 Excel。</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="field" id="casePanel" hidden style="margin-top:6px">
+        <label for="fCase">案件需求檔（fCase）</label>
+        <input type="file" id="fCase" accept=".xlsx,.csv">
+        <span class="file-state" id="sCase">尚未載入</span>
+        <span class="hint">一份檔＝一案。<b>每列必須有 CODE</b>，沒有 CODE 的列會被略過。
+          一項藥品有多筆來文時，把同一個 CODE 貼成多列、每列填一筆文號即可；<b>第 2 列起其他欄位都可留白</b>。</span>
+        <button id="btnTpl" type="button" style="align-self:flex-start;margin-top:6px">下載案件需求檔範本</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="stepFilter" hidden>
+    <div class="step-n">04</div>
+    <div class="step-body">
+      <h2>篩選範圍 <small id="filterHint">留空＝不篩選</small></h2>
+      <div class="row">
+        <div class="field"><label for="qAtc7">ATC7碼</label><input type="text" id="qAtc7" placeholder="B01AB"></div>
+        <div class="field"><label for="qGrpCd">分組代碼</label><input type="text" id="qGrpCd" placeholder=""></div>
+        <div class="field"><label for="qGrpNm">分組名稱</label><input type="text" id="qGrpNm" placeholder=""></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="qCode">CODE</label><input type="text" id="qCode" placeholder=""></div>
+        <div class="field"><label for="qBrand">藥品名稱</label><input type="text" id="qBrand" placeholder=""></div>
+      </div>
+      <span class="hint">多個值用空白或逗號分隔，任一命中即納入（前綴比對，如 <code>B01AB</code> 涵蓋 B01AB01～B01AB99）。</span>
+    </div>
+  </section>
+
+  <section class="step" id="stepOutA" hidden>
+    <div class="step-n">05</div>
+    <div class="step-body">
+      <h2>產出查詢表 <small>路徑 A ·  3 個工作表</small></h2>
+      <div class="btn-row">
+        <button id="btnQuery" class="primary" type="button" disabled>下載藥品背景查詢表</button>
+      </div>
+      <span class="hint">輸出不含 PRICE、廠商建議價、十國中位價、廠商成本、調高後支付價與財務衝擊；
+        保留分組層彙總（支付價區間、項目數、近三年平均申報量）。</span>
+    </div>
+  </section>
+
+  <section class="step" id="stepOutB" hidden>
+    <div class="step-n">05</div>
+    <div class="step-body">
+      <h2>核對與產出 <small>路徑 B · 預覽即為寫進 Word 的內容</small></h2>
+
+      <div class="field" style="margin-bottom:14px">
+        <label>提案附件 Excel 要產出哪些分頁</label>
+        <div class="chk-row">
+          <label class="chk"><input type="checkbox" id="atcL0" checked disabled>同分組<span style="color:var(--muted)">（固定產出）</span></label>
+          <label class="chk big"><input type="checkbox" id="atcL1">ATC前1碼</label>
+          <label class="chk big"><input type="checkbox" id="atcL3">ATC前3碼</label>
+          <label class="chk"><input type="checkbox" id="atcL4" checked>ATC前4碼</label>
+          <label class="chk"><input type="checkbox" id="atcL5" checked>ATC前5碼</label>
+          <label class="chk"><input type="checkbox" id="atcL7" checked>ATC7碼</label>
+        </div>
+        <span class="hint">碼數愈少範圍愈大。<b>ATC前1碼</b>等於整個 ATC 大分類，常達數千項目，預設不勾。</span>
+      </div>
+
+      <div class="btn-row">
+        <button id="btnPreview" type="button" disabled>產生預覽</button>
+        <button id="btnDocx" class="primary" type="button" disabled>下載提案 Word</button>
+        <button id="btnXlsx" type="button" disabled>下載四分頁 Excel</button>
+        <button id="btnAttach" type="button" disabled>下載提案附件 Excel</button>
+      </div>
+      <div class="prev" id="prevBox"></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p><b>雙軌分流：</b>本檔為單檔版，所有模組已內嵌。路徑 B 專屬的 <code>price-calc</code>、<code>case-report</code>、<code>docx-writer</code>、<code>docx-report</code>、<code>attachment-workbook</code>、<code>template</code> 以未執行的文字區塊存放，選擇路徑 B 時才執行，路徑 A 仍不會觸發試算邏輯。</p>
+    <p><b>共用核心：</b>兩條路徑用同一份 <code>buildGroupModel()</code>，[A2] 採計、[A3] 排除、[B5] 項目數、
+      [B6] 近三年平均申報量、[B7] 每月申報金額、[B8] 同成分同劑型收載年皆一次算好，數字必然一致。</p>
+    <p><b>零外部依賴：</b>自己解 <code>.xlsx</code>（<code>DecompressionStream</code> + XML 解析），自己組 <code>.docx</code> / <code>.xlsx</code>（自寫 ZIP 打包器 + OOXML）。單檔可直接以瀏覽器開啟，除字型 CDN 外不連外網，字型連不到時自動降階為系統字體。</p>
+  </footer>
+</div>
+
+<!-- 路徑 A / B 共用模組（載入順序即相依順序） -->
+<!-- ===== 路徑 A / B 共用模組（內嵌，載入即執行） ===== -->
+<!-- assets/js/format-utils.js -->
+<script>
+'use strict';
+/* 格式與數值工具（Path A / Path B 共用） */
+
+function esc(s){
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fpClean(v){
+  if (typeof v !== 'number' || !isFinite(v)) return v;
+  return Number(v.toPrecision(15));
+}
+
+/* 無條件捨去到指定小數位（已消除浮點誤差） */
+function floorAt(v, dec){
+  var f = Math.pow(10, dec);
+  return Math.floor(fpClean(v * f)) / f;
+}
+
+/* ------------------------------------------------------------------
+   [C11] 浮點誤差防護（處理原則版：toPrecision(10)）
+   僅用於「價格」的截斷路徑。分組層金額／數量總計不走這裡 —— 兆級總計
+   的有效位數超過 10 位，用 toPrecision(10) 會把真實數值一起磨掉，
+   那條路徑維持 fpClean()（toPrecision(15)）。
+   ------------------------------------------------------------------ */
+/* ⚠️ 乘上級距倍數後會再生一次尾差（4.56 × 100 = 455.99999999999994），
+   因此縮放前後都要清一次，否則 3.8×1.2 會被誤截為 4.55（正解 4.56）。
+   處理原則所附的參考碼只清縮放前那一次。 */
+function clean10(v){ return parseFloat(Number(v).toPrecision(10)); }
+function floorScaled(v, scale){ return Math.floor(clean10(clean10(v) * scale)) / scale; }
+/* 空字串、null、NaN、±Infinity 一律視為「無值」，不可讓 Number('')→0 混進核價 */
+function priceNum(p){
+  if (p === null || p === undefined || p === '') return null;
+  var v = Number(p);
+  return Number.isFinite(v) ? v : null;
+}
+
+function truncatePrice(p){
+  var v = priceNum(p);
+  if (v === null) return null;
+  v = clean10(v);                                   // 消除二進位尾差
+  if (v < 5)  return floorScaled(v, 100);
+  if (v < 50) return floorScaled(v, 10);
+  return Math.floor(v);
+}
+/* 成本法步驟2：固定取小數後兩位，第三位（含）以後無條件捨去 */
+function truncate2(p){
+  var v = priceNum(p);
+  return v === null ? null : floorScaled(v, 100);
+}
+
+/* ------------------------------------------------------------------
+   [D19] 金額顯示級距（簡化顯示）
+   x<1萬 實數加千分位／1萬~<1千萬 萬(1位)／1千萬~<1億 億(2位)／
+   1億~<1千億 億(1位)／1千億~<1兆 兆(2位)／≥1兆 兆(1位)
+   ------------------------------------------------------------------ */
+function chineseAmount2(val){
+  if (val === null || val === undefined || val === '' || Number.isNaN(Number(val))) return '';
+
+  const raw = Number(val);
+  if (!Number.isFinite(raw)) return '數值超出範圍';
+  const n = Math.round(raw);
+  if (!Number.isSafeInteger(n)) {
+    console.warn('chineseAmount2: 數值 ' + val + ' 超過安全整數範圍 (±' + Number.MAX_SAFE_INTEGER + ')，結果可能不精確');
+  }
+  if (n === 0) return '0元';
+
+  const neg = n < 0;
+  const av = BigInt(Math.abs(n));
+
+  const WAN  = 10000n, QWAN = 10000000n, YI = 100000000n,
+        QYI  = 100000000000n, ZHAO = 1000000000000n;
+
+  const qf = (v, divisor, decimals) => {
+    const scale = 10n ** BigInt(decimals);
+    let q = v / divisor;
+    const r = v % divisor;
+    const scaled = r * scale;
+    let f = scaled / divisor;
+    const rem2 = scaled % divisor;
+    if (rem2 * 2n >= divisor) f += 1n;
+    if (f === scale) { q += 1n; f = 0n; }
+    return { q, f };
+  };
+  const fmtq = (q, f, decimals, unit) =>
+    q.toLocaleString('en-US') + '.' + f.toString().padStart(decimals, '0') + unit;
+
+  let out;
+  if (av < WAN) {
+    out = av.toLocaleString('en-US') + '元';
+  } else if (av < QWAN) {
+    const { q, f } = qf(av, WAN, 1);
+    out = fmtq(q, f, 1, '萬');
+  } else if (av < YI) {
+    const { q, f } = qf(av, YI, 2);
+    out = fmtq(q, f, 2, '億');
+  } else if (av < QYI) {
+    const { q, f } = qf(av, YI, 1);
+    out = fmtq(q, f, 1, '億');
+  } else if (av < ZHAO) {
+    const { q, f } = qf(av, ZHAO, 2);
+    out = fmtq(q, f, 2, '兆');
+  } else {
+    const { q, f } = qf(av, ZHAO, 1);
+    out = fmtq(q, f, 1, '兆');
+  }
+  return neg ? '-' + out : out;
+}
+
+/* ------------------------------------------------------------------
+   [D19] 完整中文金額展開式（適用正式文件或需精確金額之場合）
+   decimals 預設 3（範圍 0~6）；unit 預設「元」
+   ------------------------------------------------------------------ */
+function chineseAmount(val, decimals, unit){
+  if (val === null || val === undefined || val === '') return '';
+
+  const raw = Number(val);
+
+  if (Number.isNaN(raw)) return '';
+  if (!Number.isFinite(raw)) return '數值超出範圍';
+
+  if (decimals === null || decimals === undefined || decimals === '') decimals = 3;
+  decimals = Math.floor(Number(decimals));
+  if (!Number.isFinite(decimals)) decimals = 3;
+  if (decimals < 0) decimals = 0;
+  if (decimals > 6) decimals = 6;
+
+  if (unit === null || unit === undefined || unit === '') unit = '元';
+
+  if (raw === 0) return '0' + unit;
+
+  const neg = raw < 0;
+  const absv = Math.abs(raw);
+
+  let intv;
+  let decstr = '';
+
+  if (decimals === 0) {
+    intv = Math.round(absv);
+  } else {
+    intv = Math.floor(absv);
+    const scale = 10 ** decimals;
+    let decvInt = Math.round((absv - intv) * scale);
+    if (decvInt >= scale) { intv += 1; decvInt = 0; }
+    if (decvInt > 0) decstr = '.' + String(decvInt).padStart(decimals, '0');
+  }
+
+  if (intv === 0 && decstr === '') return '0' + unit;   /* 避免 -0 */
+
+  if (!Number.isSafeInteger(intv)) {
+    console.warn('chineseAmount: 數值 ' + val + ' 的整數部分超過 JavaScript 安全整數範圍，結果可能不精確');
+  }
+
+  let rest = BigInt(intv);
+
+  const zhao = rest / 1000000000000n; rest %= 1000000000000n;
+  const yi   = rest / 100000000n;     rest %= 100000000n;
+  const wan  = rest / 10000n;         rest %= 10000n;
+  const yu   = rest;
+
+  const f = x => x.toLocaleString('en-US');
+
+  let out = '';
+  if (zhao > 0n) out += f(zhao) + '兆';
+  if (yi   > 0n) out += f(yi)   + '億';
+  if (wan  > 0n) out += f(wan)  + '萬';
+  if (yu > 0n || decstr !== '' || out === '') out += f(yu) + decstr;
+  out += unit;
+
+  return neg ? '-' + out : out;
+}
+
+/* 金額顯示級距（[D19] 簡化式），不帶單位「元」的變體供表格使用 */
+function formatAmt(v){
+  var s = chineseAmount2(v);
+  return s.slice(-1) === '元' ? s.slice(0, -1) : s;
+}
+
+/* --- 藥品分類_名稱：代碼 → 提案用語 --- */
+var DRUGCLASS_LABEL = {
+  '1': '原開發廠藥品',
+  '2': '生物製劑',
+  '3': 'BA/BE學名藥品',
+  '4': '一般學名藥品',
+  '5': '生物相似性藥品',
+  '9': 'BE對照品'
+};
+
+function drugClassLabel(d){
+  var k = String(txt(d['藥品分類'])).trim();
+  return DRUGCLASS_LABEL[k] || txt(d['藥品分類_名稱']) || '';
+}
+
+/* --- [D17] {必要藥品} 代碼對照 --- */
+var ESSENTIAL_LABEL = {
+  '0': '一般藥品',
+  '1': '一般藥品',
+  '3': '不可替代特殊藥品',
+  '4': '特殊藥品'
+};
+
+function essentialLabel(v){
+  var k = txt(v);
+  if (k === '') return '';
+  return ESSENTIAL_LABEL[k] || k;
+}
+
+/* --- 分類 → 第◯大類 --- */
+var CAT_ORD = {'1':'第一','2':'第二','3':'第三A','4':'第三A','5':'第三B','6':'第三B'};
+
+function catOrdinal(v){
+  var k = String(v === undefined || v === null ? '' : v).trim();
+  return CAT_ORD[k] || '';
+}
+
+/* --- 自適應百分比 --- */
+function adaptivePct(v){
+  if (v === null || v === undefined || isNaN(v)) return '';
+  if (v === 0) return '0%';
+  var a = Math.abs(v), dec;
+  if (a >= 10) dec = 0;
+  else if (a >= 1) dec = 1;
+  else { dec = 0; var t = a; while (t < 1 && dec < 20){ t *= 10; dec++; } }
+  return v.toFixed(dec) + '%';
+}
+
+/* --- 西元8碼 → 民國 YYY-MM-DD --- */
+function toRocDate(v){
+  var y = ad8(v);
+  if (y === null) return '';
+  var s = String(Math.round(rawAd8(v)));
+  while (s.length < 8) s = '0' + s;
+  return (y) + '-' + s.substring(4,6) + '-' + s.substring(6,8);
+}
+
+function rawAd8(v){
+  if (v === undefined || v === null || v === '') return null;
+  if (typeof v === 'number' && v > 20000 && v < 80000){            // Excel 日期序號
+    var dt = new Date(Date.UTC(1899,11,30) + v * 86400000);
+    return dt.getUTCFullYear()*10000 + (dt.getUTCMonth()+1)*100 + dt.getUTCDate();
+  }
+  var s = String(v).replace(/\D/g,'');
+  if (s.length === 8) return parseInt(s,10);
+  if (s.length === 7) return (parseInt(s.substring(0,3),10)+1911)*10000 + parseInt(s.substring(3),10); // 民國7碼
+  return null;
+}
+
+/* 西元8碼 → 民國年 */
+function ad8(v){
+  var n = rawAd8(v);
+  if (n === null) return null;
+  return Math.floor(n / 10000) - 1911;
+}
+
+/* --- 分類分組類別 --- */
+function catLabel(v){
+  var s = String(v === undefined || v === null ? '' : v).trim();
+  if (s === '1') return '一';
+  if (s === '2') return '二';
+  if (s === '3' || s === '4') return '三A';
+  if (s === '5' || s === '6') return '三B';
+  return s;
+}
+
+var BLANK = '＿＿＿＿＿＿';
+
+function num(v){
+  if (v === undefined || v === null || v === '') return null;
+  var f = parseFloat(String(v).replace(/,/g,''));
+  return isNaN(f) ? null : f;
+}
+
+function fmt(v, dec){
+  var n = num(v);
+  if (n === null) return '';
+  return n.toLocaleString('en-US',{minimumFractionDigits:dec||0, maximumFractionDigits:dec===undefined?0:dec});
+}
+
+function money(v){
+  var n = num(v);
+  if (n === null) return '';
+  return n.toLocaleString('en-US',{minimumFractionDigits:0, maximumFractionDigits:2});
+}
+
+function txt(v, fallback){
+  if (v === undefined || v === null || String(v).trim() === '') return fallback === undefined ? '' : fallback;
+  return String(v).trim();
+}
+
+function normPriceYear(v){
+  var s = String(v === undefined || v === null ? '' : v).replace(/\D/g,'');
+  return s;
+}
+
+/* 支付價年月 11508 → 「115年8月」 */
+function pyLabel(py){
+  var s = String(py === undefined || py === null ? '' : py).replace(/\D/g,'');
+  if (s.length !== 5) return s;
+  return parseInt(s.substring(0,3),10) + '年' + parseInt(s.substring(3,5),10) + '月';
+}
+</script>
+<!-- assets/js/parser.js -->
+<script>
+'use strict';
+/* ZIP 讀寫 + XLSX / CSV 解析（Path A / Path B 共用） */
+
+var CRC = (function(){
+  var t = new Uint32Array(256);
+  for (var n=0;n<256;n++){ var c=n;
+    for (var k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1);
+    t[n]=c>>>0; }
+  return t;
+})();
+
+function crc32(b){
+  var c = 0xFFFFFFFF;
+  for (var i=0;i<b.length;i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c>>>8);
+  return (c ^ 0xFFFFFFFF)>>>0;
+}
+
+var TE = new TextEncoder();
+
+var TD = new TextDecoder('utf-8');
+
+/* ---- 寫：有 CompressionStream 就 deflate，否則 stored ---- */
+function deflateRaw(bytes){
+  if (typeof CompressionStream === 'undefined') return Promise.resolve(null);
+  var s = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  return new Response(s).arrayBuffer().then(function(a){ return new Uint8Array(a); })
+                        .catch(function(){ return null; });
+}
+
+function zipWrite(files){
+  return Promise.all(files.map(function(f){
+    if (f.data.length < 256) return Promise.resolve({f:f, z:null});
+    return deflateRaw(f.data).then(function(z){
+      return {f:f, z:(z && z.length < f.data.length) ? z : null};
+    });
+  })).then(function(list){
+    var parts=[], central=[], offset=0, i;
+    for (i=0;i<list.length;i++){
+      var f = list[i].f, z = list[i].z;
+      var method = z ? 8 : 0, payload = z || f.data;
+      var nameB = TE.encode(f.name), crc = crc32(f.data);
+      var lh = new Uint8Array(30+nameB.length), lv = new DataView(lh.buffer);
+      lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true); lv.setUint16(6,0x0800,true);
+      lv.setUint16(8,method,true); lv.setUint16(10,0,true); lv.setUint16(12,0,true);
+      lv.setUint32(14,crc,true); lv.setUint32(18,payload.length,true); lv.setUint32(22,f.data.length,true);
+      lv.setUint16(26,nameB.length,true); lv.setUint16(28,0,true);
+      lh.set(nameB,30);
+      parts.push(lh,payload);
+
+      var ch = new Uint8Array(46+nameB.length), cv = new DataView(ch.buffer);
+      cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
+      cv.setUint16(8,0x0800,true); cv.setUint16(10,method,true);
+      cv.setUint16(12,0,true); cv.setUint16(14,0,true);
+      cv.setUint32(16,crc,true); cv.setUint32(20,payload.length,true); cv.setUint32(24,f.data.length,true);
+      cv.setUint16(28,nameB.length,true); cv.setUint16(30,0,true); cv.setUint16(32,0,true);
+      cv.setUint16(34,0,true); cv.setUint16(36,0,true); cv.setUint32(38,0,true);
+      cv.setUint32(42,offset,true);
+      ch.set(nameB,46);
+      central.push(ch);
+      offset += lh.length + payload.length;
+    }
+    var cdSize=0;
+    for (i=0;i<central.length;i++) cdSize += central[i].length;
+    var eo = new Uint8Array(22), ev = new DataView(eo.buffer);
+    ev.setUint32(0,0x06054b50,true); ev.setUint16(4,0,true); ev.setUint16(6,0,true);
+    ev.setUint16(8,central.length,true); ev.setUint16(10,central.length,true);
+    ev.setUint32(12,cdSize,true); ev.setUint32(16,offset,true); ev.setUint16(20,0,true);
+    return new Blob(parts.concat(central,[eo]),{type:'application/octet-stream'});
+  });
+}
+
+/* ---- 讀：走中央目錄，deflate 用瀏覽器內建解壓 ---- */
+function inflateRaw(bytes){
+  if (typeof DecompressionStream === 'undefined')
+    return Promise.reject(new Error('此瀏覽器不支援 DecompressionStream，請改用 Chrome / Edge 80+，或改上傳 CSV'));
+  var s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Response(s).arrayBuffer().then(function(a){ return new Uint8Array(a); });
+}
+
+function zipRead(buf){
+  var u = new Uint8Array(buf), dv = new DataView(buf), i;
+  var eocd = -1;
+  for (i = u.length-22; i >= 0 && i >= u.length-22-65557; i--){
+    if (dv.getUint32(i,true) === 0x06054b50){ eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('不是有效的 xlsx（找不到 ZIP 結尾）');
+  var count = dv.getUint16(eocd+10,true), cdOff = dv.getUint32(eocd+16,true);
+  var entries = [], p = cdOff;
+  for (i=0;i<count;i++){
+    if (dv.getUint32(p,true) !== 0x02014b50) break;
+    var method = dv.getUint16(p+10,true);
+    var cSize  = dv.getUint32(p+20,true);
+    var nLen   = dv.getUint16(p+28,true);
+    var eLen   = dv.getUint16(p+30,true);
+    var kLen   = dv.getUint16(p+32,true);
+    var lOff   = dv.getUint32(p+42,true);
+    var name   = TD.decode(u.subarray(p+46, p+46+nLen));
+    entries.push({name:name,method:method,cSize:cSize,lOff:lOff});
+    p += 46+nLen+eLen+kLen;
+  }
+  return {
+    names: entries.map(function(e){ return e.name; }),
+    get: function(name){
+      var e = null;
+      for (var j=0;j<entries.length;j++) if (entries[j].name===name){ e=entries[j]; break; }
+      if (!e) return Promise.resolve(null);
+      var ln = dv.getUint16(e.lOff+26,true), le = dv.getUint16(e.lOff+28,true);
+      var start = e.lOff+30+ln+le;
+      var raw = u.subarray(start, start+e.cSize);
+      if (e.method === 0) return Promise.resolve(raw);
+      if (e.method === 8) return inflateRaw(raw);
+      return Promise.reject(new Error('不支援的壓縮方式 '+e.method+'：'+name));
+    }
+  };
+}
+
+/* ============================================================
+   2. XLSX / CSV 解析
+   ============================================================ */
+
+function colToIdx(s){
+  var n=0; for (var i=0;i<s.length;i++) n = n*26 + (s.charCodeAt(i)-64);
+  return n-1;
+}
+
+function unesc(s){
+  if (s.indexOf('&') < 0) return s;
+  return s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')
+          .replace(/&apos;/g,"'")
+          .replace(/&#x([0-9a-fA-F]+);/g,function(_,h){return String.fromCodePoint(parseInt(h,16));})
+          .replace(/&#(\d+);/g,function(_,d){return String.fromCodePoint(+d);})
+          .replace(/&amp;/g,'&');
+}
+
+function parseSharedStrings(xml){
+  var out=[], re=/<si\b[^>]*>([\s\S]*?)<\/si>/g, m;
+  while ((m = re.exec(xml))){
+    var txt='', tre=/<t\b[^>]*>([\s\S]*?)<\/t>/g, tm;
+    while ((tm = tre.exec(m[1]))) txt += unesc(tm[1]);
+    out.push(txt);
+  }
+  return out;
+}
+
+function parseSheet(xml, sst){
+  var grid = [], maxCol = 0;
+  var re = /<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g, m;
+  while ((m = re.exec(xml))){
+    var col = colToIdx(m[1]), row = (+m[2]) - 1, attrs = m[3]||'', body = m[4];
+    if (body === undefined || body === '') continue;
+    var tm = /t="([^"]+)"/.exec(attrs), type = tm ? tm[1] : 'n';
+    var val = null;
+    if (type === 'inlineStr'){
+      var it='', tre=/<t\b[^>]*>([\s\S]*?)<\/t>/g, t2;
+      while ((t2 = tre.exec(body))) it += unesc(t2[1]);
+      val = it;
+    } else {
+      var vm = /<v>([\s\S]*?)<\/v>/.exec(body);
+      if (!vm) continue;
+      var raw = unesc(vm[1]);
+      if (type === 's') val = sst[+raw];
+      else if (type === 'str' || type === 'e') val = raw;
+      else if (type === 'b') val = raw === '1';
+      else { var f = parseFloat(raw); val = isNaN(f) ? raw : f; }
+    }
+    if (val === null || val === '') continue;
+    if (!grid[row]) grid[row] = [];
+    grid[row][col] = val;
+    if (col > maxCol) maxCol = col;
+  }
+  return gridToObjects(grid, maxCol);
+}
+
+function gridToObjects(grid, maxCol){
+  var hdrRow = -1, r;
+  for (r=0;r<grid.length;r++){ if (grid[r] && grid[r].length){ hdrRow = r; break; } }
+  if (hdrRow < 0) return [];
+  var head = [];
+  for (var c=0;c<=maxCol;c++){
+    var h = grid[hdrRow][c];
+    head[c] = (h === undefined || h === null) ? '' : String(h).trim();
+  }
+  var out = [];
+  for (r = hdrRow+1; r < grid.length; r++){
+    var row = grid[r];
+    if (!row) continue;
+    var o = {}, any = false;
+    for (var k=0;k<=maxCol;k++){
+      if (!head[k]) continue;
+      var v = row[k];
+      if (v === undefined) continue;
+      o[head[k]] = v; any = true;
+    }
+    if (any) out.push(o);
+  }
+  return out;
+}
+
+function readXlsx(buf){
+  var zip = zipRead(buf), sst = [];
+  return zip.get('xl/sharedStrings.xml')
+    .then(function(b){ if (b) sst = parseSharedStrings(TD.decode(b)); })
+    .then(function(){ return zip.get('xl/workbook.xml'); })
+    .then(function(wbB){
+      var target = 'xl/worksheets/sheet1.xml';
+      if (!wbB) return target;
+      return zip.get('xl/_rels/workbook.xml.rels').then(function(relB){
+        var sm = /<sheet\b[^>]*?r:id="([^"]+)"[^>]*\/?>/.exec(TD.decode(wbB));
+        if (!sm || !relB) return target;
+        var rre = new RegExp('Id="'+sm[1]+'"[^>]*Target="([^"]+)"');
+        var rm = rre.exec(TD.decode(relB));
+        if (!rm) {
+          rre = new RegExp('Target="([^"]+)"[^>]*Id="'+sm[1]+'"');
+          rm = rre.exec(TD.decode(relB));
+        }
+        if (!rm) return target;
+        var t = rm[1].replace(/^\//,'');
+        return t.indexOf('xl/') === 0 ? t : 'xl/'+t;
+      });
+    })
+    .then(function(path){
+      return zip.get(path).then(function(b){
+        if (!b) throw new Error('找不到工作表 '+path);
+        return parseSheet(TD.decode(b), sst);
+      });
+    });
+}
+
+function readCsv(text){
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  var rows = [], cur = [''], q = false, i;
+  for (i=0;i<text.length;i++){
+    var ch = text[i];
+    if (q){
+      if (ch === '"'){ if (text[i+1] === '"'){ cur[cur.length-1]+='"'; i++; } else q = false; }
+      else cur[cur.length-1] += ch;
+    } else if (ch === '"'){ q = true; }
+    else if (ch === ','){ cur.push(''); }
+    else if (ch === '\n'){ rows.push(cur); cur = ['']; }
+    else if (ch !== '\r'){ cur[cur.length-1] += ch; }
+  }
+  if (cur.length > 1 || cur[0] !== '') rows.push(cur);
+  if (!rows.length) return [];
+  var head = rows[0].map(function(h){ return h.trim(); });
+  return rows.slice(1).filter(function(r){ return r.some(function(v){ return v !== ''; }); })
+    .map(function(r){
+      var o = {};
+      for (var k=0;k<head.length;k++){
+        if (!head[k]) continue;
+        var v = r[k];
+        if (v === undefined || v === '') continue;
+        var f = Number(v);
+        o[head[k]] = (v.trim() !== '' && !isNaN(f)) ? f : v;
+      }
+      return o;
+    });
+}
+</script>
+<!-- assets/js/xlsx-writer.js -->
+<script>
+'use strict';
+/* XLSX 組出引擎（Path A / Path B 共用） */
+
+function xlColName(i){ var s=''; i++; while(i>0){ var m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=(i-m-1)/26; } return s; }
+
+/* 樣式索引（對應下方 cellXfs 順序） */
+var XS = {
+  BODY:0, HEAD:1, TITLE:2, INT:3, DEC:4, SUB:5, NOTE:6, MARK:7, LABEL:8, SUBINT:9, SECT:10
+};
+
+function xcell(v, s){ return {v:v, s:s}; }
+
+function stylesXml(){
+  var F = '"Microsoft JhengHei"';
+  function font(sz, b, color, name){
+    return '<font><sz val="'+sz+'"/>' + (b ? '<b/>' : '')
+      + '<color rgb="FF'+color+'"/><name val="'+(name||'Microsoft JhengHei')+'"/><charset val="136"/></font>';
+  }
+  function fill(rgb){
+    return rgb ? '<fill><patternFill patternType="solid"><fgColor rgb="FF'+rgb+'"/><bgColor indexed="64"/></patternFill></fill>'
+               : '<fill><patternFill patternType="none"/></fill>';
+  }
+  var thin = '<left style="thin"><color rgb="FFE0E0E0"/></left>'
+           + '<right style="thin"><color rgb="FFE0E0E0"/></right>'
+           + '<top style="thin"><color rgb="FFE0E0E0"/></top>'
+           + '<bottom style="thin"><color rgb="FFE0E0E0"/></bottom><diagonal/>';
+  function xf(fontId, fillId, borderId, numFmt, align){
+    return '<xf numFmtId="'+(numFmt||0)+'" fontId="'+fontId+'" fillId="'+fillId+'" borderId="'+borderId+'" xfId="0"'
+      + (numFmt ? ' applyNumberFormat="1"' : '') + ' applyFont="1" applyFill="1" applyBorder="1"'
+      + (align ? ' applyAlignment="1"><alignment '+align+'/></xf>' : '/>');
+  }
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.###"/></numFmts>'
+    + '<fonts count="5">'
+      + font(10, false, '161616')          /* 0 內文 */
+      + font(10, true,  '161616')          /* 1 粗體 */
+      + font(14, true,  '0F62FE')          /* 2 標題 */
+      + font(9,  false, '525252')          /* 3 備註 */
+      + font(11, true,  '161616')          /* 4 區塊標題 */
+    + '</fonts>'
+    + '<fills count="5">' + fill(null) + '<fill><patternFill patternType="gray125"/></fill>'
+      + fill('D0E2FF')                     /* 2 表頭淺藍 */
+      + fill('F4F4F4')                     /* 3 小計淺灰 */
+      + fill('EDF5FF')                     /* 4 標記淡藍 */
+    + '</fills>'
+    + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'
+      + '<border>' + thin + '</border></borders>'
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    + '<cellXfs count="11">'
+      + xf(0,0,1,0,'vertical="center" wrapText="1"')                        /* 0 BODY */
+      + xf(1,2,1,0,'horizontal="center" vertical="center" wrapText="1"')    /* 1 HEAD */
+      + xf(2,0,0,0,'vertical="center"')                                     /* 2 TITLE */
+      + xf(0,0,1,3,'horizontal="right" vertical="center"')                  /* 3 INT  #,##0 */
+      + xf(0,0,1,164,'horizontal="right" vertical="center"')                /* 4 DEC  #,##0.### */
+      + xf(1,3,1,0,'vertical="center" wrapText="1"')                        /* 5 SUB  小計 */
+      + xf(3,0,0,0,'vertical="center"')                                     /* 6 NOTE 不換行，可溢出 */
+      + xf(1,4,1,0,'vertical="center" wrapText="1"')                        /* 7 MARK 本案 */
+      + xf(1,3,1,0,'horizontal="center" vertical="center" wrapText="1"')    /* 8 LABEL 左欄 */
+      + xf(1,3,1,3,'horizontal="right" vertical="center"')                  /* 9 SUBINT 小計數字 */
+      + xf(4,0,0,0,'vertical="center"')                                     /* 10 SECT 區塊標題 */
+    + '</cellXfs>'
+    + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+    + '</styleSheet>';
+}
+
+function sheetXml(sh){
+  var aoa = sh.aoa || [], i, r;
+  var maxCol = 0;
+  for (r=0;r<aoa.length;r++) if (aoa[r] && aoa[r].length > maxCol) maxCol = aoa[r].length;
+
+  var out = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'];
+  if (sh.fitToPage) out.push('<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
+  out.push('<dimension ref="A1:' + xlColName(Math.max(maxCol,1)-1) + Math.max(aoa.length,1) + '"/>');
+
+  /* 凍結窗格 */
+  var fr = sh.freeze || 0;
+  if (fr > 0){
+    out.push('<sheetViews><sheetView workbookViewId="0">'
+      + '<pane ySplit="'+fr+'" topLeftCell="A'+(fr+1)+'" activePane="bottomLeft" state="frozen"/>'
+      + '<selection pane="bottomLeft" activeCell="A'+(fr+1)+'" sqref="A'+(fr+1)+'"/>'
+      + '</sheetView></sheetViews>');
+  } else {
+    out.push('<sheetViews><sheetView workbookViewId="0"/></sheetViews>');
+  }
+  out.push('<sheetFormatPr defaultRowHeight="' + (sh.rowHeight || 20) + '" defaultColWidth="12"/>');
+
+  /* 欄寬 */
+  if (sh.cols && sh.cols.length){
+    var c = '<cols>';
+    for (i=0;i<sh.cols.length;i++)
+      c += '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+sh.cols[i]+'" customWidth="1"/>';
+    out.push(c + '</cols>');
+  }
+
+  out.push('<sheetData>');
+  for (r=0;r<aoa.length;r++){
+    var vals = aoa[r] || [], n = r+1;
+    var ht = sh.rowHeights && sh.rowHeights[r];
+    var row = '<row r="'+n+'"' + (ht ? ' ht="'+ht+'" customHeight="1"' : '') + '>';
+    for (i=0;i<vals.length;i++){
+      var cell = vals[i];
+      if (cell === undefined || cell === null) continue;
+      var isObj = (typeof cell === 'object' && cell !== null && 'v' in cell);
+      var v  = isObj ? cell.v : cell;
+      var st = (typeof cell === 'object' && cell !== null && 's' in cell) ? cell.s : null;
+      var empty = (v === undefined || v === null || v === '');
+      /* 空白但有指定樣式者仍要寫出（只帶 s、不帶值），
+         否則小計列的灰底與表格框線會在空欄位處斷掉 */
+      if (empty && st === null) continue;
+      if (st === null) st = (typeof v === 'number' && isFinite(v)) ? XS.INT : XS.BODY;
+      var ref = xlColName(i)+n, sa = ' s="'+st+'"';
+      if (empty) row += '<c r="'+ref+'"'+sa+'/>';
+      else if (typeof v === 'number' && isFinite(v)) row += '<c r="'+ref+'"'+sa+'><v>'+v+'</v></c>';
+      else row += '<c r="'+ref+'"'+sa+' t="inlineStr"><is><t xml:space="preserve">'+esc(v)+'</t></is></c>';
+    }
+    out.push(row+'</row>');
+  }
+  out.push('</sheetData>');
+
+  if (sh.autoFilter) out.push('<autoFilter ref="'+sh.autoFilter+'"/>');
+  if (sh.merges && sh.merges.length){
+    out.push('<mergeCells count="'+sh.merges.length+'">'
+      + sh.merges.map(function(m){ return '<mergeCell ref="'+m+'"/>'; }).join('')
+      + '</mergeCells>');
+  }
+  if (sh.validations && sh.validations.length){
+    out.push('<dataValidations count="'+sh.validations.length+'">'
+      + sh.validations.map(function(dv){
+          return '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1"'
+               + ' promptTitle="'+esc(dv.title||'')+'" prompt="'+esc(dv.prompt||'')+'"'
+               + ' errorTitle="輸入值不符" error="請由清單選取" sqref="'+dv.ref+'">'
+               + '<formula1>&quot;'+esc(dv.list.join(','))+'&quot;</formula1></dataValidation>';
+        }).join('')
+      + '</dataValidations>');
+  }
+  out.push('<pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>');
+  if (sh.landscape || sh.fitToPage){
+    out.push('<pageSetup paperSize="9"'                      /* 9 = A4 */
+      + (sh.landscape ? ' orientation="landscape"' : '')
+      + (sh.fitToPage ? ' fitToWidth="1" fitToHeight="0"' : '') + '/>');
+  }
+  out.push('</worksheet>');
+  return out.join('');
+}
+
+/* 依內容自動估欄寬（全形字算 2） */
+function autoCols(aoa, min, max){
+  min = min || 8; max = max || 42;
+  var w = [], r, i;
+  for (r=0;r<aoa.length;r++){
+    var row = aoa[r] || [];
+    for (i=0;i<row.length;i++){
+      var cell = row[i];
+      var v = (cell && typeof cell === 'object' && 'v' in cell) ? cell.v : cell;
+      if (v === undefined || v === null) continue;
+      var t = String(typeof v === 'number' ? Math.round(v).toLocaleString('en-US') : v);
+      var longest = 0;
+      t.split('\n').forEach(function(line){
+        var n = 0;
+        for (var k=0;k<line.length;k++) n += (line.charCodeAt(k) > 255 ? 2 : 1);
+        if (n > longest) longest = n;
+      });
+      if (!w[i] || longest > w[i]) w[i] = longest;
+    }
+  }
+  for (i=0;i<w.length;i++) w[i] = Math.min(max, Math.max(min, (w[i]||min) + 2));
+  return w;
+}
+
+function rowsToAoa(rows){
+  var head = Object.keys(rows[0] || {});
+  return [head.map(function(h){ return xcell(h, XS.HEAD); })]
+    .concat(rows.map(function(r){ return head.map(function(h){ return r[h]; }); }));
+}
+
+function buildXlsxBook(sheets){
+  var files = [], sheetRels = [], sheetTags = [], defNames = [], i;
+  for (i=0;i<sheets.length;i++){
+    var sh = sheets[i];
+    if (!sh.aoa) sh.aoa = rowsToAoa(sh.rows || []);
+    if (!sh.cols) sh.cols = autoCols(sh.aoa);
+    var nm = String(sh.name).replace(/[\\\/\?\*\[\]:]/g,'_').substring(0,31);
+    files.push({name:'xl/worksheets/sheet'+(i+1)+'.xml', data:TE.encode(sheetXml(sh))});
+    sheetRels.push('<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>');
+    sheetTags.push('<sheet name="'+esc(nm)+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>');
+    var qn = "'" + nm.replace(/'/g,"''") + "'";
+    if (sh.printArea)
+      defNames.push('<definedName name="_xlnm.Print_Area" localSheetId="'+i+'">'+esc(qn+'!'+sh.printArea)+'</definedName>');
+    if (sh.printTitles)
+      defNames.push('<definedName name="_xlnm.Print_Titles" localSheetId="'+i+'">'+esc(qn+'!'+sh.printTitles)+'</definedName>');
+  }
+  var styleRid = 'rId' + (sheets.length + 1);
+  var wb = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    + '<sheets>' + sheetTags.join('') + '</sheets>'
+    + (defNames.length ? '<definedNames>' + defNames.join('') + '</definedNames>' : '')
+    + '</workbook>';
+  var wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    + sheetRels.join('')
+    + '<Relationship Id="'+styleRid+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+    + '</Relationships>';
+  var ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+    + '<Default Extension="xml" ContentType="application/xml"/>'
+    + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+    + sheets.map(function(_,k){ return '<Override PartName="/xl/worksheets/sheet'+(k+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('')
+    + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+    + '</Types>';
+  var rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+    + '</Relationships>';
+  return zipWrite([
+    {name:'[Content_Types].xml',       data:TE.encode(ct)},
+    {name:'_rels/.rels',               data:TE.encode(rels)},
+    {name:'xl/workbook.xml',           data:TE.encode(wb)},
+    {name:'xl/_rels/workbook.xml.rels',data:TE.encode(wbRels)},
+    {name:'xl/styles.xml',             data:TE.encode(stylesXml())}
+  ].concat(files));
+}
+
+function buildXlsx(rows, sheetName, opt){
+  var sh = {name:sheetName, rows:rows, freeze:1}, k;
+  if (opt) for (k in opt) sh[k] = opt[k];
+  return buildXlsxBook([sh].concat((opt && opt.extraSheets) || []));
+}
+
+/* 依欄名決定數值格式 */
+function styleForHeader(h){
+  h = String(h || '');
+  if (/金額|數量|項目數|品項數|總數|申報量/.test(h)) return XS.INT;
+  if (/支付價|價格|中位價|成本|建議價/.test(h)) return XS.DEC;
+  return XS.BODY;
+}
+
+function headRow(arr){ return arr.map(function(h){ return xcell(h, XS.HEAD); }); }
+
+function dataRow(vals, styles, override){
+  return vals.map(function(v, i){
+    var st = (override && override[i] !== undefined) ? override[i] : styles[i];
+    if (typeof v !== 'number' && st !== XS.BODY && st !== XS.SUB && st !== XS.MARK) st = XS.BODY;
+    return xcell(v, st);
+  });
+}
+</script>
+<!-- assets/js/group-model.js -->
+<script>
+'use strict';
+/* 分組模型：[A2]/[A3]/[B5]~[B8] 共用核心（Path A / Path B 共用） */
+
+/* --- ATC_資訊 --- */
+function atcInfo(d){
+  var a = atcOf(d), n = txt(d['ATC名稱']).toLowerCase();
+  return a ? ('[' + a + '] ' + n) : n;
+}
+
+/* --- 不良品暫停支付註記（當月欄位無年月後綴） --- */
+function suspFlag(d){
+  return String(d['不良品暫停支付註記'] || '').trim().toUpperCase() === 'Y';
+}
+
+function ingredientKey(v){
+  var s = txt(v);
+  if (s.length < 11) return '';
+  return s.substring(0,8) + s.substring(9,11);
+}
+
+/* --- 支付價區間（含0元，SAS：distinct 排序、' / ' 串接、非整數去尾零） --- */
+function priceRange(items, priceCol, sep, skipZero){
+  var seen = {}, out = [];
+  for (var i=0;i<items.length;i++){
+    var v = num(items[i][priceCol]);
+    if (v === null) continue;
+    if (skipZero && v === 0) continue;
+    if (seen[v]) continue;
+    seen[v] = 1; out.push(v);
+  }
+  out.sort(function(a,b){ return a-b; });
+  return out.map(function(v){ return String(v); }).join(sep || ' / ');
+}
+
+function detectDataYear(master, baseYear){
+  var keys = {}, i, k;
+  for (i=0;i<Math.min(master.length,300);i++) for (k in master[i]) keys[k]=1;
+  for (var y = baseYear-1; y >= baseYear-8; y--) if (keys['QTY'+y] && keys['AMT'+y]) return y;
+  return baseYear-1;
+}
+
+function qtyOf(d,y){ return num(d['QTY'+y])||0; }
+
+function amtOf(d,y){ return num(d['AMT'+y])||0; }
+
+function atcOf(d){ return String(d['ATC7碼']===undefined||d['ATC7碼']===null?'':d['ATC7碼']).trim(); }
+
+function atcMatch(d, atc7, mode){
+  var a = atcOf(d);
+  return mode === 'PREFIX5' ? a.substring(0,5) === atc7.substring(0,5) : a === atc7;
+}
+
+/* [B5] 同分組項目數（給付中，不含已取消支付價項目）
+   1. 不良品暫停支付註記 = 'Y'          → 計入（無論支付價為何）
+   2. 註記 ≠ 'Y' 且 支付價 ≠ 0          → 計入
+   3. 註記 ≠ 'Y' 且 支付價為空值        → 計入（費用內含於其他項目，不另核價但有申報量）
+   唯一不計入的情形：註記 ≠ 'Y' 且 支付價 = 0 */
+function countValid(items, priceCol){
+  var n = 0;
+  for (var i=0;i<items.length;i++){
+    if (num(items[i][priceCol]) === 0 && !suspFlag(items[i])) continue;
+    n++;
+  }
+  return n;
+}
+
+/* 價格 0 但不良品暫停支付註記 = Y → 計入項目數，但支付價欄不顯示 */
+function countSuspended(items, priceCol){
+  var n = 0;
+  for (var i=0;i<items.length;i++){
+    if (num(items[i][priceCol]) === 0 && suspFlag(items[i])) n++;
+  }
+  return n;
+}
+
+/* 【列出／計數的唯一判定】與 countValid 同一條 [B5] 規則，只是以「整備後的列」為輸入。
+   這條規則只決定「哪些列要列出／計數」；金額與數量的採計一律走 [A2] 的
+   amtAdj／qtyAdj，兩者互不影響。 */
+function isCounted(r){
+  if (r.price === 0) return suspFlag(r.d);
+  return true;                       /* 支付價 ≠ 0 或為空值 → 均計入 */
+}
+
+function priceList(items, priceCol){
+  var seen = {}, out = [];
+  for (var i=0;i<items.length;i++){
+    var v = num(items[i][priceCol]);
+    if (v === null || v === 0) continue;
+    if (seen[v]) continue;
+    seen[v] = 1; out.push(v);
+  }
+  out.sort(function(a,b){return a-b;});
+  return out.map(money).join('、');
+}
+
+function listedYears(drug, baseYear){
+  var raw = drug['收載日期'];
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw === 'number' && raw > 20000 && raw < 80000){          // Excel 日期序號
+    var dt = new Date(Date.UTC(1899,11,30) + raw*86400000);
+    return baseYear - (dt.getUTCFullYear() - 1911);
+  }
+  var s = String(raw).replace(/\D/g,''), y = null;
+  if (s.length === 7) y = parseInt(s.substring(0,3),10);
+  else if (s.length === 8) y = parseInt(s.substring(0,4),10) - 1911;
+  if (y === null || isNaN(y)) return null;
+  return baseYear - y;
+}
+
+/* [A1] 解析主檔的 {最新申報年度資料範圍}（例 '11501-11506' / '11501-11512'）
+   回傳 {year:民國年, months:涵蓋月數}；無法解析回 null。 */
+var DATARANGE_KEYS = ['最新申報年度資料範圍','最新申報年度資料範圍 ','申報年度資料範圍'];
+function parseDataRange(master){
+  var i, k, raw = '';
+  for (i=0;i<Math.min(master.length,300) && !raw;i++)
+    for (k=0;k<DATARANGE_KEYS.length && !raw;k++) raw = txt(master[i][DATARANGE_KEYS[k]]);
+  if (!raw) return null;
+  var m = String(raw).match(/(\d{3})(\d{2})\s*[-~—－至]\s*(\d{3})(\d{2})/);
+  if (!m) return null;
+  var y1 = parseInt(m[1],10), m1 = parseInt(m[2],10),
+      y2 = parseInt(m[3],10), m2 = parseInt(m[4],10);
+  if (isNaN(y1)||isNaN(m1)||isNaN(y2)||isNaN(m2)) return null;
+  var months = (y2 - y1) * 12 + (m2 - m1) + 1;
+  return {year:y2, months:months, raw:String(raw)};
+}
+
+/* [A1] 年度視窗：當期年 YR3 = 有完整12個月申報資料的最近一年
+   1. 主檔有 {最新申報年度資料範圍} → 涵蓋 12 個月取該民國年，不足 12 個月往前推 1 年
+   2. 無此欄位 → 退回舊行為：自 baseYear-1 起往前找存在 QTY/AMT 欄的年度（最多回推 8 年）
+   兩種來源最後都會再確認該年度的 QTY/AMT 欄位確實存在。 */
+function resolveYearWindow(master, baseYear){
+  var keys = {}, i, k;
+  for (i=0;i<Math.min(master.length,300);i++) for (k in master[i]) keys[k]=1;
+  var has = function(y){ return !!(keys['QTY'+y] && keys['AMT'+y]); };
+
+  var dr = parseDataRange(master);
+  if (dr){
+    var y = (dr.months >= 12) ? dr.year : dr.year - 1;
+    if (has(y)) return y;
+    for (; y >= baseYear-8; y--) if (has(y)) return y;   /* 欄位真的缺就往前退 */
+  }
+  for (var z = baseYear-1; z >= baseYear-8; z--) if (has(z)) return z;
+  return baseYear-1;
+}
+
+var OFFNET_KEYS = ['不上網註記','不上網','不上網註','不上網記號'];
+
+function offnetFlag(d){
+  for (var i=0;i<OFFNET_KEYS.length;i++){
+    var v = txt(d[OFFNET_KEYS[i]]);
+    if (v) return v.toUpperCase();
+  }
+  return '';
+}
+
+function isTpnCode(code){ return txt(code).toUpperCase().substring(0,3) === 'TPN'; }
+
+function excludeMaster(rows, exTpn, exOff, keepCodes){
+  var out = [], nT = 0, nO = 0;
+  for (var i=0;i<rows.length;i++){
+    var d = rows[i], code = txt(d['CODE']);
+    if (!(keepCodes && keepCodes[code])){
+      if (exTpn && isTpnCode(code)){ nT++; continue; }
+      if (exOff && offnetFlag(d) === 'Y'){ nO++; continue; }
+    }
+    out.push(d);
+  }
+  return {rows: out, tpn: nT, offnet: nO};
+}
+
+function buildGroupModel(master, priceYear, yr3){
+  var baseYear = parseInt(priceYear.substring(0,3),10);
+  var priceCol = 'PRICE' + priceYear;
+  var YR3 = (yr3 === undefined || yr3 === null) ? baseYear-1 : yr3;
+  var YR1 = YR3-2, YR2 = YR3-1;
+  var i, k;
+
+  /* [A2] 逐列：0元項目的年度歸零
+     情形1 不良品暫停支付註記 = 'Y'          → 直接採計，無年份邊界（無論支付價為何）
+     情形2 註記 ≠ 'Y' 且 支付價 ≠ 0          → 直接採計
+     情形3 註記 ≠ 'Y' 且 支付價 = 0          → 年份 ≤ 生效年 採計，大於者歸零
+     情形4 註記 ≠ 'Y' 且 支付價為空值        → 直接採計（費用內含於其他項目，無價仍有申報量） */
+  var rows = master.map(function(d){
+    var p = num(d[priceCol]);
+    var eff = ad8(d['生效日期']);
+    var susp = suspFlag(d);
+    var q = [num(d['QTY'+YR1])||0, num(d['QTY'+YR2])||0, num(d['QTY'+YR3])||0];
+    var a = [num(d['AMT'+YR1])||0, num(d['AMT'+YR2])||0, num(d['AMT'+YR3])||0];
+    var qa = q.slice(), aa = a.slice();
+    if (!susp && p === 0 && eff !== null){
+      var yrs = [YR1,YR2,YR3];
+      for (var j=0;j<3;j++) if (!(yrs[j] <= eff)){ qa[j] = 0; aa[j] = 0; }
+    }
+    return {d:d, price:p, susp:susp, code:txt(d['CODE']), grp:txt(d['分組代碼']),
+            ingKey:ingredientKey(d['分組代碼']),
+            qty:q, amt:a, qtyAdj:qa, amtAdj:aa};
+  });
+
+  /* [B8] 同成分同劑型收載年（10碼 key，與 [B6] 的12碼分組各自獨立 GROUP BY）
+     基準年（藥商銷售資料採計期間截止年）：price 年月之月份 ≥ 4 → 該民國年；< 4 → 該民國年 − 1
+     基準年 − 同成分同劑型收載年 ≥ 15 → 第三B大類 */
+  var mm = parseInt(priceYear.substring(3,5),10);
+  var cutoffYear = (isNaN(mm) || mm >= 4) ? baseYear : baseYear - 1;
+  var ING = {};
+  for (i=0;i<rows.length;i++){
+    var ik = rows[i].ingKey;
+    if (!ik) continue;
+    var iy = ad8(rows[i].d['收載日期']);
+    if (iy === null) continue;
+    if (ING[ik] === undefined || iy < ING[ik]) ING[ik] = iy;
+  }
+  for (i=0;i<rows.length;i++){
+    var y8 = (rows[i].ingKey && ING[rows[i].ingKey] !== undefined) ? ING[rows[i].ingKey] : null;
+    rows[i].ingListYear = y8;
+    rows[i].cat3B = (y8 === null) ? null : (cutoffYear - y8 >= 15);
+  }
+
+  /* 依分組代碼彙總 */
+  var G = {}, gOrder = [];
+  for (i=0;i<rows.length;i++){
+    var g = rows[i].grp;
+    if (!G[g]){
+      G[g] = {code:g, name:txt(rows[i].d['分組名稱']), items:[], rows:[],
+              qtySum:[0,0,0], amtSum:[0,0,0], listYear:null};
+      gOrder.push(g);
+    }
+    var o = G[g];
+    o.rows.push(rows[i]); o.items.push(rows[i].d);
+    for (k=0;k<3;k++){ o.qtySum[k] += rows[i].qtyAdj[k]; o.amtSum[k] += rows[i].amtAdj[k]; }
+    var ly = ad8(rows[i].d['收載日期']);
+    if (ly !== null && (o.listYear === null || ly < o.listYear)) o.listYear = ly;
+  }
+  /* [B6] 同分組近三年平均申報量
+     分母由分組收載年決定，固定為 3 / 2 / 1，不隨 NULL 年度縮減：
+       收載年 早於 YR1（近第3年）      → ÷3
+       收載年 = YR1 / YR2 / YR3        → ÷3 / ÷2 / ÷1
+       收載年 晚於 YR3（近第1年）      → 該分組近三年均無申報資料，平均為 0（仍須列出）
+     [B7] 同分組每月申報金額 = 當期年度（YR3）AMT 總計 ÷ 12 */
+  var yrs = [YR1, YR2, YR3];
+  for (i=0;i<gOrder.length;i++){
+    var gg = G[gOrder[i]], vals = [];
+    for (k=0;k<3;k++){
+      if (gg.listYear !== null && yrs[k] < gg.listYear) continue;
+      vals.push(Math.round(fpClean(gg.qtySum[k])*10)/10);
+    }
+    gg.avgQty3 = vals.length
+      ? Math.round(fpClean(vals.reduce(function(a,b){return a+b;},0)/vals.length)*10)/10
+      : 0;                       /* 收載年晚於近第1年 → 0，不是 null */
+    gg.amtSum  = gg.amtSum.map(function(v){ return Math.round(fpClean(v)*10)/10; });
+    gg.qtySum  = gg.qtySum.map(function(v){ return Math.round(fpClean(v)*10)/10; });
+    gg.monthlyAmt = Math.round(fpClean(gg.amtSum[2]/12)*10)/10;
+    gg.priceRange = priceRange(gg.items, priceCol, ' / ');
+    gg.cnt = countValid(gg.items, priceCol);       /* [B5] 給付中項目數 */
+    gg.total = gg.rows.length;
+    /* [B8] 同一分組代碼之所有項目共用同一個10碼 key，取第一列即可 */
+    gg.ingKey      = gg.rows[0].ingKey;
+    gg.ingListYear = gg.rows[0].ingListYear;
+    gg.cat3B       = gg.rows[0].cat3B;
+  }
+  var byCode = {};
+  for (i=0;i<rows.length;i++) byCode[rows[i].code] = rows[i];
+
+  return {baseYear:baseYear, priceCol:priceCol, YR1:YR1, YR2:YR2, YR3:YR3,
+          cutoffYear:cutoffYear, ingYears:ING,
+          rows:rows, groups:G, gOrder:gOrder, byCode:byCode, yrs:yrs};
+}
+</script>
+<!-- assets/js/exporters/sas-workbook.js -->
+<script>
+'use strict';
+/* 四分頁 Excel 報表（分頁 1 以 skipPriceCalc 控制） */
+
+function parseFilter(v){
+  return String(v || '').trim().toLowerCase().split(/[\s,，、|]+/).filter(function(x){ return x; });
+}
+
+function passFilter(r, f){
+  function m(list, val){
+    if (!list.length) return true;
+    val = String(val || '').toLowerCase();
+    for (var i=0;i<list.length;i++) if (val.indexOf(list[i]) >= 0) return true;
+    return false;
+  }
+  return m(f.atc7, atcOf(r.d)) && m(f.grpCd, r.grp) && m(f.grpNm, txt(r.d['分組名稱']))
+      && m(f.code, r.code) && m(f.brand, txt(r.d['藥品名稱']));
+}
+
+/* opt：{ skipPriceCalc:Boolean }
+   skipPriceCalc = true（路徑 A 背景查詢）→ 完全不產出分頁 1，也不觸碰 targets[i].calc，
+   因此 price-calc.js / case-report.js 未載入時本函式仍可執行。
+   預設 false（路徑 B 正式提案）→ 行為與單軌版本完全相同。 */
+function buildSasWorkbook(model, filters, targets, priceYear, opt){
+  var YR1 = model.YR1, YR2 = model.YR2, YR3 = model.YR3, priceCol = model.priceCol;
+  var i, j;
+  var skipPriceCalc = !!(opt && opt.skipPriceCalc);
+  targets = targets || [];
+  var sel = model.rows.filter(function(r){ return passFilter(r, filters); });
+
+  /* ---------- 分頁1：藥價核定試算（skipPriceCalc 時整張略過） ---------- */
+  var s1 = [], m1 = [], rh1 = {};
+  function push1(row){ s1.push(row); return s1.length - 1; }
+  if (!skipPriceCalc){
+  push1([xcell('藥價核定試算', XS.TITLE)]);
+  rh1[0] = 26;
+  push1([xcell('依「全民健康保險藥物給付項目及支付標準」第35條特殊藥品支付價格訂定原則，'
+    + '本案藥品就不同核價方式試算之支付價格及財務衝擊如下。（單位：元；財務衝擊為年度推估）', XS.NOTE)]);
+  push1([]);
+  for (i=0;i<targets.length;i++){
+    var t = targets[i], c = t.calc;
+    var n1 = c.tenHead.length, n2 = c.costHead.length, total = 2 + n1 + n2;
+    var rSect = push1([xcell(txt(t.drug['藥品名稱']) + '（藥品代碼：' + t.code + '）', XS.SECT)]);
+
+    var rHd = push1([xcell('健保價', XS.HEAD), xcell('廠商建議價', XS.HEAD), xcell('核價方式', XS.HEAD)]);
+    m1.push(xlColName(2) + (rHd+1) + ':' + xlColName(total-1) + (rHd+1));
+
+    var r2 = [xcell(t.row.price === null ? '－' : t.row.price, t.row.price === null ? XS.BODY : XS.DEC),
+              xcell(t.sug === null ? '－' : t.sug, t.sug === null ? XS.BODY : XS.DEC),
+              xcell('十國藥價中位數(註1)', XS.HEAD)];
+    for (j=1;j<n1;j++) r2.push(xcell('', XS.HEAD));
+    r2.push(xcell('參考成本價(註2)', XS.HEAD));
+    for (j=1;j<n2;j++) r2.push(xcell('', XS.HEAD));
+    var rSub = push1(r2);
+    if (n1 > 1) m1.push(xlColName(2) + (rSub+1) + ':' + xlColName(2+n1-1) + (rSub+1));
+    if (n2 > 1) m1.push(xlColName(2+n1) + (rSub+1) + ':' + xlColName(total-1) + (rSub+1));
+
+    function calcRow(label, vals, numeric){
+      var row = [xcell(label, XS.LABEL), xcell('', XS.LABEL)];
+      for (var k=0;k<vals.length;k++){
+        var v = vals[k];
+        var asNum = numeric && v !== '無' && v !== '－' && v !== '' && !isNaN(Number(v));
+        row.push(xcell(asNum ? Number(v) : v, asNum ? XS.DEC : XS.BODY));
+      }
+      var idx = push1(row);
+      m1.push('A' + (idx+1) + ':B' + (idx+1));
+    }
+    var rPct = push1([xcell('加計比例', XS.LABEL), xcell('', XS.LABEL)]
+      .concat(c.tenHead.map(function(x){ return xcell(x, XS.HEAD); }))
+      .concat(c.costHead.map(function(x){ return xcell(x, XS.HEAD); })));
+    m1.push('A' + (rPct+1) + ':B' + (rPct+1));
+    calcRow('調高後支付價', c.priceRow, true);
+    calcRow('整體藥費',     c.totalRow, false);
+    calcRow('財務衝擊',     c.impactRow, false);
+
+    push1([xcell('註1：' + c.a10Law, XS.NOTE)]);
+    push1([xcell('註2：' + c.costLaw + '　2.領有藥物許可證者，得加計繳納藥害救濟徵收金比率及營業稅。' + c.licNote, XS.NOTE)]);
+    push1([xcell('分組名稱：' + (t.grp ? t.grp.name : '')
+      + '　　每月申報金額(' + YR3 + '年)：' + (!t.grp || t.grp.monthlyAmt === null ? '-' : fmt(Math.round(t.grp.monthlyAmt))) + ' 元'
+      + '　　近三年平均申報量：' + (!t.grp || t.grp.avgQty3 === null ? '-' : fmt(Math.round(t.grp.avgQty3))), XS.NOTE)]);
+    push1([]);
+  }
+  if (!targets.length) push1([xcell('未指定目標藥品CODE，無法計算適用級距。', XS.NOTE)]);
+  push1([xcell('※ 整體藥費 ＝ 調高後支付價 × 同分組近三年平均申報量(QTY)', XS.NOTE)]);
+  push1([xcell('※ 財務衝擊 ＝ (調高後支付價 － 健保價) × 同分組近三年平均申報量(QTY)', XS.NOTE)]);
+  }
+
+  var cols1 = [16, 14];
+  for (i=2;i<24;i++) cols1.push(13);
+
+  /* ---------- 分頁2：分組統計 ---------- */
+  var S2H = ['分組代碼','分組名稱','調劑大類','[ATC代碼] ATC名稱','項目數','分組項目總數(含0元)',
+             '支付價'+priceYear,
+             YR1+'年申報金額分組總計', YR2+'年申報金額分組總計', YR3+'年申報金額分組總計','分組每月申報金額',
+             YR1+'年申報數量分組總計', YR2+'年申報數量分組總計', YR3+'年申報數量分組總計','近三年平均申報量'];
+  var ST2 = S2H.map(styleForHeader);
+  ST2[6] = XS.BODY;                                     /* 支付價區間是文字 */
+  var buckets = {}, bOrder = [];
+  for (i=0;i<sel.length;i++){
+    var key = sel[i].grp + '' + atcInfo(sel[i].d);
+    if (!buckets[key]){ buckets[key] = {grp:sel[i].grp, atc:atcInfo(sel[i].d), rows:[]}; bOrder.push(key); }
+    buckets[key].rows.push(sel[i]);
+  }
+  function statVals(label, rows, gcode){
+    var g = model.groups[gcode];
+    var amt = [0,0,0], qty = [0,0,0], items = [];
+    for (var m=0;m<rows.length;m++){
+      for (var n=0;n<3;n++){ amt[n] += rows[m].amtAdj[n]; qty[n] += rows[m].qtyAdj[n]; }
+      items.push(rows[m].d);
+    }
+    /* 分組代碼留白者不是一個真的分組：不套用分組層彙總（支付價區間、近三年平均申報量） */
+    var real = !!gcode;
+    return [gcode || '(未填分組代碼)', real && g ? g.name : '', catLabel(rows[0].d['分類']), label,
+            countValid(items, priceCol), rows.length, (real && g) ? g.priceRange : '',
+            Math.round(amt[0]), Math.round(amt[1]), Math.round(amt[2]),
+            Math.round(amt[2]/12),
+            Math.round(qty[0]), Math.round(qty[1]), Math.round(qty[2]),
+            (real && g && g.avgQty3 !== null) ? Math.round(g.avgQty3) : null];
+  }
+  var byGrp = {}, grpOrder = [];
+  for (i=0;i<bOrder.length;i++){
+    var bk = buckets[bOrder[i]];
+    if (!byGrp[bk.grp]){ byGrp[bk.grp] = []; grpOrder.push(bk.grp); }
+    byGrp[bk.grp].push(bk);
+  }
+  grpOrder.sort(function(a,b){
+    var za = (model.groups[a] && model.groups[a].cnt === 0) ? 1 : 0;
+    var zb = (model.groups[b] && model.groups[b].cnt === 0) ? 1 : 0;
+    if (za !== zb) return za - zb;
+    return a < b ? -1 : (a > b ? 1 : 0);
+  });
+  var s2 = [headRow(S2H)];
+  var SUBST = S2H.map(function(h){ return styleForHeader(h) === XS.BODY ? XS.SUB : XS.SUBINT; });
+  for (i=0;i<grpOrder.length;i++){
+    var list = byGrp[grpOrder[i]].slice().sort(function(a,b){ return a.atc < b.atc ? -1 : 1; });
+    var all = [];
+    for (j=0;j<list.length;j++){
+      s2.push(dataRow(statVals(list[j].atc, list[j].rows, grpOrder[i]), ST2));
+      all = all.concat(list[j].rows);
+    }
+    if (list.length > 1) s2.push(dataRow(statVals('分組小計', all, grpOrder[i]), SUBST));
+  }
+
+  /* ---------- 分頁3 / 4：項目明細 ---------- */
+  var wt = {};
+  for (i=0;i<sel.length;i++){
+    var wk = sel[i].grp + '' + sel[i].code.substring(0,8);
+    wt[wk] = (wt[wk] || 0) + sel[i].amt[2];
+  }
+  var det = sel.slice().sort(function(a,b){
+    var ca = catLabel(a.d['分類']), cb = catLabel(b.d['分類']);
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    if (a.grp !== b.grp) return a.grp < b.grp ? -1 : 1;
+    var za = (a.price === 0 ? 1 : 0), zb = (b.price === 0 ? 1 : 0);
+    if (za !== zb) return za - zb;
+    var wa = wt[a.grp+''+a.code.substring(0,8)] || 0;
+    var wb2 = wt[b.grp+''+b.code.substring(0,8)] || 0;
+    if (wa !== wb2) return wb2 - wa;
+    if (a.amt[2] !== b.amt[2]) return b.amt[2] - a.amt[2];
+    return a.code < b.code ? -1 : 1;
+  });
+  var targetCodes = {};
+  for (i=0;i<targets.length;i++) targetCodes[targets[i].code] = 1;
+
+  function detVals(r, withZero){
+    var g = model.groups[r.grp];
+    var amtShare = (g && g.amtSum[2]) ? adaptivePct(r.amt[2]/g.amtSum[2]*100) : '';
+    var qtyShare = (g && g.qtySum[2]) ? adaptivePct(r.qty[2]/g.qtySum[2]*100) : '';
+    var base = [
+      r.grp, g ? g.name : '', catLabel(r.d['分類']), atcInfo(r.d), r.code,
+      txt(r.d['藥品名稱']) + (targetCodes[r.code] ? '（本案藥品）' : ''),
+      txt(r.d['藥商名稱']), txt(r.d['藥品分類_名稱']),
+      r.price
+    ];
+    if (withZero) base.push(toRocDate(r.d['生效日期']));
+    base = base.concat([
+      Math.round(r.amt[0]), Math.round(r.amt[1]), Math.round(r.amt[2]), amtShare,
+      Math.round(r.qty[0]), Math.round(r.qty[1]), Math.round(r.qty[2]), qtyShare,
+      txt(r.d['適應症']), txt(r.d['藥價說明'])
+    ]);
+    if (withZero) base = base.concat([txt(r.d['不良品暫停支付註記']), num(r.d['不良品暫停支付前價格'])]);
+    return base;
+  }
+  var DH = ['分組代碼','分組名稱','調劑大類','[ATC代碼] ATC名稱','CODE','藥品名稱','藥商名稱','藥品分類_名稱','支付價'+priceYear];
+  var DT = [YR1+'年申報金額', YR2+'年申報金額', YR3+'年申報金額', YR3+'年AMT占率',
+            YR1+'年申報數量', YR2+'年申報數量', YR3+'年申報數量', YR3+'年QTY占率', '適應症','藥價說明'];
+  var H3 = DH.concat(DT);
+  var H4 = DH.concat(['生效日期']).concat(DT).concat(['不良品暫停支付註記','不良品暫停支付前價格']);
+  var ST3 = H3.map(styleForHeader), ST4 = H4.map(styleForHeader);
+  ST3[12] = ST3[16] = XS.BODY;                          /* 占率是文字 */
+  ST4[13] = ST4[17] = XS.BODY;
+
+  var s3 = [headRow(H3)], s4 = [headRow(H4)];
+  for (i=0;i<det.length;i++){
+    var mk = targetCodes[det[i].code] ? {5: XS.MARK} : null;
+    if (isCounted(det[i])) s3.push(dataRow(detVals(det[i], false), ST3, mk));
+    s4.push(dataRow(detVals(det[i], true), ST4, mk));
+  }
+
+  function lastRef(aoa, headers){ return 'A1:' + xlColName(headers.length-1) + aoa.length; }
+
+  var sheets = [];
+  if (!skipPriceCalc)
+    sheets.push({name:'1.藥價核定試算',  aoa:s1, cols:cols1, rowHeights:rh1, merges:m1, rowHeight:20});
+  var n = skipPriceCalc ? 0 : 1;
+  sheets.push({name:(n+1)+'.總覽篩選_分組統計',       aoa:s2, freeze:1, autoFilter:lastRef(s2,S2H), rowHeights:{0:34}, rowHeight:20});
+  sheets.push({name:(n+2)+'.總覽篩選_項目明細',       aoa:s3, freeze:1, autoFilter:lastRef(s3,H3),  rowHeights:{0:34}, rowHeight:20});
+  sheets.push({name:(n+3)+'.總覽篩選_項目明細(含0元)', aoa:s4, freeze:1, autoFilter:lastRef(s4,H4),  rowHeights:{0:34}, rowHeight:20});
+
+  return {
+    book: buildXlsxBook(sheets),
+    counts: {s2:s2.length-1, s3:s3.length-1, s4:s4.length-1, sel:sel.length},
+    skipPriceCalc: skipPriceCalc
+  };
+}
+</script>
+<!-- assets/js/exporters/query-workbook.js -->
+<script>
+'use strict';
+/* 路徑 A｜藥品背景查詢表（3 個工作表）
+   輸入只有藥品主檔 + price 民國年月，完全不進行核價試算，
+   因此本檔不依賴 price-calc.js / case-report.js / docx-*。
+
+   Sheet 1 查詢摘要      符合篩選條件的項目本身
+   Sheet 2 同分組比較    上述項目所屬分組的全部項目（分組層彙總小計）
+   Sheet 3 同ATC相關品項 上述項目 ATC7 碼相同的全部項目（可能落在不同分組）
+
+   簡化規則（INTENT 路徑 A）：不出現 PRICE、廠商建議價、十國中位價、廠商成本、
+   調高後支付價、財務衝擊、核定備註；保留分組層彙總（支付價區間、項目數、申報量）。 */
+
+var QUERY_BANNER = '此為背景查詢版，非正式提案';
+
+function queryStamp(){
+  var d = new Date();
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+
+/* 查詢範圍：套用步驟 03 的篩選條件；留空 → 全主檔 */
+function queryScope(model, filters){
+  return model.rows.filter(function(r){ return passFilter(r, filters); });
+}
+
+function buildQueryWorkbook(model, filters, priceYear){
+  var YR1 = model.YR1, YR2 = model.YR2, YR3 = model.YR3, priceCol = model.priceCol;
+  var i, k;
+  var sel = queryScope(model, filters);
+  var stamp = queryStamp();
+
+  function titleRows(title, note){
+    return [
+      [xcell(title, XS.TITLE)],
+      [xcell(QUERY_BANNER + '　／　查詢日期 ' + stamp
+        + '　／　支付價基準 ' + pyLabel(priceYear)
+        + '　／　申報年度視窗 民國 ' + YR1 + '–' + YR3 + ' 年'
+        + (note ? '　／　' + note : ''), XS.NOTE)],
+      []
+    ];
+  }
+  function footRows(){
+    return [[], [xcell('※ ' + QUERY_BANNER + '，不含任何核價試算欄位。', XS.NOTE)]];
+  }
+  function grpOf(r){ return model.groups[r.grp]; }
+
+  /* ---------- Sheet 1：查詢摘要 ---------- */
+  var H1 = ['CODE','藥品名稱','藥商名稱','ATC7碼','ATC名稱','分組代碼','分組名稱',
+            '收載日期','生效日期','藥品分類_名稱','必要藥品',
+            '同分組項目數','分組項目總數(含0元)','支付價區間'+priceYear,
+            '同成分同劑型收載年','第三B大類'];
+  var ST1 = H1.map(styleForHeader);
+  ST1[13] = XS.BODY;                          /* 支付價區間是文字 */
+  var s1 = titleRows('藥品背景查詢　·　查詢摘要');
+  s1.push(headRow(H1));
+  for (i=0;i<sel.length;i++){
+    var r = sel[i], g = grpOf(r);
+    s1.push(dataRow([
+      r.code, txt(r.d['藥品名稱']), txt(r.d['藥商名稱']),
+      atcOf(r.d), txt(r.d['ATC名稱']).toLowerCase(),
+      r.grp, g ? g.name : '',
+      toRocDate(r.d['收載日期']), toRocDate(r.d['生效日期']),
+      drugClassLabel(r.d), essentialLabel(r.d['必要藥品']),
+      g ? g.cnt : null, g ? g.total : null, g ? g.priceRange : '',
+      (r.ingListYear === null || r.ingListYear === undefined) ? '' : r.ingListYear,
+      r.cat3B === null || r.cat3B === undefined ? '' : (r.cat3B ? 'Y' : 'N')
+    ], ST1));
+  }
+  if (!sel.length) s1.push([xcell('查無符合篩選條件的項目。', XS.NOTE)]);
+  s1 = s1.concat(footRows());
+
+  /* ---------- Sheet 2：同分組比較 ---------- */
+  var H2 = ['分組代碼','分組名稱','調劑大類','[ATC代碼] ATC名稱','CODE','藥品名稱','藥商名稱',
+            '藥品分類_名稱','收載日期',
+            YR1+'年申報數量', YR2+'年申報數量', YR3+'年申報數量',
+            YR1+'年申報金額', YR2+'年申報金額', YR3+'年申報金額'];
+  var ST2 = H2.map(styleForHeader);
+  var seenG = {}, gList = [];
+  for (i=0;i<sel.length;i++){
+    if (!sel[i].grp || seenG[sel[i].grp]) continue;
+    seenG[sel[i].grp] = 1; gList.push(sel[i].grp);
+  }
+  var s2 = titleRows('藥品背景查詢　·　同分組比較',
+                     '分組層金額／數量為整組全部項目（含未列出者）之加總');
+  s2.push(headRow(H2));
+  for (k=0;k<gList.length;k++){
+    var gc = gList[k], gg = model.groups[gc];
+    if (!gg) continue;
+    for (i=0;i<gg.rows.length;i++){
+      var rr = gg.rows[i];
+      if (!isCounted(rr)) continue;                     /* [B5] 給付中項目才列出 */
+      s2.push(dataRow([
+        gc, gg.name, catLabel(rr.d['分類']), atcInfo(rr.d), rr.code,
+        txt(rr.d['藥品名稱']), txt(rr.d['藥商名稱']), drugClassLabel(rr.d),
+        toRocDate(rr.d['收載日期']),
+        Math.round(rr.qtyAdj[0]), Math.round(rr.qtyAdj[1]), Math.round(rr.qtyAdj[2]),
+        Math.round(rr.amtAdj[0]), Math.round(rr.amtAdj[1]), Math.round(rr.amtAdj[2])
+      ], ST2));
+    }
+    /* 分組小計：整組（含未列出項目）之加總，與 [B6]/[B7] 同一份數字 */
+    s2.push(dataRow([
+      gc, gg.name + '　小計', '', '項目數 ' + gg.cnt + ' ／ 總數 ' + gg.total,
+      '支付價區間：' + gg.priceRange, '近三年平均申報量 ' + fmt(Math.round(gg.avgQty3)),
+      '每月申報金額 ' + fmt(Math.round(gg.monthlyAmt)) + ' 元', '', '',
+      Math.round(gg.qtySum[0]), Math.round(gg.qtySum[1]), Math.round(gg.qtySum[2]),
+      Math.round(gg.amtSum[0]), Math.round(gg.amtSum[1]), Math.round(gg.amtSum[2])
+    ], ST2, {0:XS.SUB,1:XS.SUB,2:XS.SUB,3:XS.SUB,4:XS.SUB,5:XS.SUB,6:XS.SUB,7:XS.SUB,8:XS.SUB,
+             9:XS.SUBINT,10:XS.SUBINT,11:XS.SUBINT,12:XS.SUBINT,13:XS.SUBINT,14:XS.SUBINT}));
+    s2.push([]);
+  }
+  if (!gList.length) s2.push([xcell('查無符合篩選條件的分組。', XS.NOTE)]);
+  s2 = s2.concat(footRows());
+
+  /* ---------- Sheet 3：同 ATC7 碼相關品項 ---------- */
+  var H3 = ['ATC7碼','ATC名稱','CODE','藥品名稱','藥商名稱','分組代碼','分組名稱',
+            '藥品分類_名稱','收載日期',
+            YR3+'年申報數量', YR3+'年申報金額','同分組近三年平均申報量'];
+  var ST3 = H3.map(styleForHeader);
+  var seenA = {}, aList = [];
+  for (i=0;i<sel.length;i++){
+    var a = atcOf(sel[i].d);
+    if (!a || seenA[a]) continue;
+    seenA[a] = 1; aList.push(a);
+  }
+  var byAtc = {};
+  for (i=0;i<model.rows.length;i++){
+    var av = atcOf(model.rows[i].d);
+    if (!seenA[av]) continue;
+    (byAtc[av] = byAtc[av] || []).push(model.rows[i]);
+  }
+  var s3 = titleRows('藥品背景查詢　·　同 ATC7 碼相關品項',
+                     '同一 ATC7 碼可能橫跨不同分組');
+  s3.push(headRow(H3));
+  for (k=0;k<aList.length;k++){
+    var list = byAtc[aList[k]] || [];
+    for (i=0;i<list.length;i++){
+      var t = list[i], tg = model.groups[t.grp];
+      if (!isCounted(t)) continue;
+      s3.push(dataRow([
+        atcOf(t.d), txt(t.d['ATC名稱']).toLowerCase(), t.code,
+        txt(t.d['藥品名稱']), txt(t.d['藥商名稱']), t.grp, tg ? tg.name : '',
+        drugClassLabel(t.d), toRocDate(t.d['收載日期']),
+        Math.round(t.qtyAdj[2]), Math.round(t.amtAdj[2]),
+        tg ? Math.round(tg.avgQty3) : null
+      ], ST3));
+    }
+  }
+  if (!aList.length) s3.push([xcell('查無符合篩選條件的 ATC7 碼。', XS.NOTE)]);
+  s3 = s3.concat(footRows());
+
+  function ref(aoa, headers){ return 'A4:' + xlColName(headers.length-1) + aoa.length; }
+
+  return {
+    book: buildXlsxBook([
+      {name:'1.查詢摘要',      aoa:s1, cols:autoCols(s1, 10, 42), freeze:4, autoFilter:ref(s1,H1), rowHeights:{0:26,3:34}, rowHeight:20},
+      {name:'2.同分組比較',    aoa:s2, cols:autoCols(s2, 10, 42), freeze:4, rowHeights:{0:26,3:34}, rowHeight:20},
+      {name:'3.同ATC相關品項', aoa:s3, cols:autoCols(s3, 10, 42), freeze:4, autoFilter:ref(s3,H3), rowHeights:{0:26,3:34}, rowHeight:20}
+    ]),
+    counts: {sel:sel.length, groups:gList.length, atc:aList.length,
+             s1:Math.max(s1.length-6,0), s2:Math.max(s2.length-6,0), s3:Math.max(s3.length-6,0)}
+  };
+}
+</script>
+
+<!-- ===== 路徑 B 專屬模組（內嵌但不執行，選擇路徑 B 時才由 injectModule() 執行） ===== -->
+<script type="text/plain" data-mod="assets/js/price-calc.js">
+'use strict';
+/* 核價試算：[C9]~[C14]（僅 Path B 載入） */
+
+/* --- [C12] 支付標準第40條：核算價小數處理（一律無條件捨去）
+       截斷前先依 [C11] 消除二進位浮點誤差（truncatePrice 內含） --- */
+function article40RoundDown(v){
+  if (v === null || v === undefined || isNaN(v)) return null;
+  return truncatePrice(v);
+}
+
+/* --- 參考十國藥價法核算價：上限價 = 中位數 × (1 + 加成率) --- */
+function a10RefPrice(ten, pct){
+  if (ten === null) return null;
+  return article40RoundDown(ten * (1 + pct));
+}
+
+/* --- [C10] 參考成本價核算價
+       1. 廠商成本 × (1 + 管銷費用比例)
+       2. [C11] 消除浮點誤差後取小數兩位，第三位（含）以後捨去
+       3. 領有藥物許可證 = Y → × 1.0505（營業稅 5% + 藥害救濟徵收金 0.05%）
+       4. 依 [C12] 第40條截斷 --- */
+function costRefPrice(cost, pct, lic){
+  if (cost === null) return null;
+  var base = truncate2(cost * (1 + pct));
+  var fin = (String(lic || '').toUpperCase() === 'Y') ? base * (1 + 0.05 + 0.0005) : base;
+  return article40RoundDown(fin);
+}
+
+/* --- 金額級距（依法條：≤50萬 / >50萬且≤100萬 / >100萬） --- */
+var A10_PCTS  = [0.00,0.05,0.10,0.15,0.20];
+
+var COST_PCTS = [0.00,0.05,0.10,0.15,0.20,0.25,0.30,0.35,0.40,0.45,0.50];
+
+var A10_TIER_PCT  = [0.20, 0.10, 0.00];
+
+var COST_TIER_PCT = [0.50, 0.40, 0.30];
+
+var A10_TIER_LAW = [
+  '（二）1.每月申報金額小於等於新臺幣五十萬元者，以十國藥價中位數加百分之二十為上限價。',
+  '（二）2.每月申報金額大於新臺幣五十萬元、小於等於新臺幣一百萬元者，以十國藥價中位數加百分之十為上限價。',
+  '（二）3.每月申報金額大於新臺幣一百萬元者，以十國藥價中位數為上限價。'
+];
+
+var COST_TIER_LAW = [
+  '（1）每月申報金額小於等於新臺幣五十萬元者，加計百分之五十。',
+  '（2）每月申報金額大於新臺幣五十萬元、小於等於新臺幣一百萬元者，加計百分之四十。',
+  '（3）每月申報金額大於新臺幣一百萬元者，加計百分之三十。'
+];
+
+var LIC_NOTE = {
+  Y: '因領有藥物許可證者，得加計繳納藥害救濟徵收金比率0.05%及營業稅5%。',
+  N: '因未領有藥物許可證者，不得加計繳納藥害救濟徵收金比率0.05%及營業稅5%。'
+};
+
+/* 依法條文字「小於等於」判定（SAS 原碼用 low -< 500000，恰好 50 萬會落到第2級，此處已修正） */
+function amtTier(monthlyAmt){
+  if (monthlyAmt === null || monthlyAmt === undefined || isNaN(monthlyAmt)) return null;
+  monthlyAmt = fpClean(monthlyAmt);
+  if (monthlyAmt <= 500000)  return 0;
+  if (monthlyAmt <= 1000000) return 1;
+  return 2;
+}
+
+/* --- 第40條適用級距說明 --- */
+function article40Text(lt5, l550, ge50){
+  var s = '※ 全民健康保險藥物給付項目及支付標準第40條：核算價格小數點之處理方式如下（僅列本次實際適用之級距）：';
+  if (lt5)  s += '\n一、核算價小於新臺幣5元者，取至小數點後第2位，第3位（含）以後無條件捨去。';
+  if (l550) s += '\n二、核算價大於或等於新臺幣5元且小於50元者，取至小數點後第1位，第2位（含）以後無條件捨去。';
+  if (ge50) s += '\n三、核算價大於或等於新臺幣五十元者，取至整數，小數點以後無條件捨去。';
+  return s;
+}
+
+var SHEET1_ROWS = ['核算價','整體藥費','財務影響'];
+
+function buildPriceCalc(opt){
+  // opt: {nhi, sug, ten, cost, lic, avgQty, monthlyAmt}
+  var ten = opt.ten, cost = opt.cost, avg = opt.avgQty;
+  var tenV  = A10_PCTS.map(function(p){ return a10RefPrice(ten, p); });
+  var costV = COST_PCTS.map(function(p){ return costRefPrice(cost, p, opt.lic); });
+  var all = tenV.concat(costV);
+  var lt5 = 0, l550 = 0, ge50 = 0;
+  for (var i=0;i<all.length;i++){
+    var v = all[i];
+    if (v === null) continue;
+    if (v < 5) lt5 = 1; else if (v < 50) l550 = 1; else ge50 = 1;
+  }
+  function fmtP(v){ return v === null ? '' : String(v); }
+  function overall(v){ return (v === null || avg === null) ? '' : chineseAmount(v * avg); }
+  function impact(v){ return (v === null || avg === null || opt.nhi === null) ? '' : chineseAmount((v - opt.nhi) * avg); }
+
+  var body = [
+    [ opt.nhi === null ? '' : String(opt.nhi), opt.sug === null ? '' : String(opt.sug), '核算價' ]
+      .concat(tenV.map(fmtP)).concat(costV.map(fmtP)),
+    ['-','-','整體藥費'].concat(tenV.map(overall)).concat(costV.map(overall)),
+    ['-','-','財務影響'].concat(tenV.map(impact)).concat(costV.map(impact))
+  ];
+  var tier = amtTier(opt.monthlyAmt);
+  return {
+    tenVals: tenV, costVals: costV, rows: body, tier: tier,
+    a10Pct:  tier === null ? null : A10_TIER_PCT[tier],
+    costPct: tier === null ? null : COST_TIER_PCT[tier],
+    a10Law:  tier === null ? '' : A10_TIER_LAW[tier],
+    costLaw: tier === null ? '' : COST_TIER_LAW[tier],
+    licNote: LIC_NOTE[String(opt.lic || '').toUpperCase()] || '',
+    art40:   article40Text(lt5, l550, ge50)
+  };
+}
+
+function priceCalcHeaders(priceYear){
+  var h1 = ['健保支付價' + priceYear + '(元)', '廠商建議價(元)', ''];
+  var h2 = A10_PCTS.map(function(p){ return Math.round(p*100) + '%'; });
+  var h3 = COST_PCTS.map(function(p){ return Math.round(p*100) + '%'; });
+  return {fixed:h1, ten:h2, cost:h3};
+}
+
+/* 「0,10,15」→ [0,10,15]；空字串 → [] */
+function parsePcts(v){
+  return String(v === undefined || v === null ? '' : v)
+    .split(/[^0-9.]+/).filter(function(x){ return x !== ''; })
+    .map(Number).filter(function(x){ return !isNaN(x); });
+}
+</script>
+<script type="text/plain" data-mod="assets/js/case-report.js">
+'use strict';
+/* 案件需求檔 → 提案報表模型（僅 Path B 載入） */
+
+/* 說明一慣例：不分項，「、」分隔，最後一筆用「及」；同廠商來文集中，只在其第一筆前冠藥商名稱 */
+function joinLetters(letters){
+  var byV = {}, order = [], i, k, m;
+  for (i=0;i<letters.length;i++){
+    var v = letters[i].vendor || '';
+    if (!byV[v]){ byV[v] = []; order.push(v); }
+    byV[v].push(letters[i].ref);
+  }
+  var parts = [];
+  for (k=0;k<order.length;k++){
+    var refs = byV[order[k]];
+    for (m=0;m<refs.length;m++)
+      parts.push((m === 0 ? order[k] : '') + (refs[m] || (BLANK + '年＿月＿日' + BLANK + '字第' + BLANK + '號')) + '函');
+  }
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0];
+  return parts.slice(0, -1).join('、') + '及' + parts[parts.length-1];
+}
+
+function mergeCaseRowsByCode(caseRows){
+  var order = [], byCode = {}, i, k;
+  for (i=0;i<caseRows.length;i++){
+    var cr = caseRows[i], code = txt(cr['CODE']);
+    if (!code) continue;
+    if (!byCode[code]){ byCode[code] = {CODE:code, __refs:[], __modes:[], __rows:0}; order.push(code); }
+    var m = byCode[code];
+    m.__rows++;
+    for (k in cr){
+      if (k === 'CODE' || k === '來文日期文號' || k === 'ATC_MODE') continue;
+      if (txt(m[k]) === '' && txt(cr[k]) !== '') m[k] = cr[k];
+    }
+    var ref = txt(cr['來文日期文號']);
+    if (ref && m.__refs.indexOf(ref) < 0) m.__refs.push(ref);
+    var md = txt(cr['ATC_MODE']).toUpperCase();
+    if (md && m.__modes.indexOf(md) < 0) m.__modes.push(md);
+  }
+  return order.map(function(c){
+    var m = byCode[c], md = m.__modes;
+    m['ATC_MODE'] = (md.indexOf('BOTH') >= 0 || (md.indexOf('FULL') >= 0 && md.indexOf('PREFIX5') >= 0))
+      ? 'BOTH' : (md[0] || 'BOTH');            /* 未填 → 預設 BOTH */
+    if (!m.__refs.length) m.__refs = [''];
+    return m;
+  });
+}
+
+function firstNonEmpty(rows, key){
+  for (var i=0;i<rows.length;i++){ var v = txt(rows[i][key]); if (v) return v; }
+  return '';
+}
+
+/* 「項次」儲存格：本案藥品在數字下方加粗體標記 */
+function selfMark(n, isSelf){
+  return isSelf ? segCell([{t:String(n)}, {t:'\n（本案藥品）', b:true, sz:16}]) : String(n);
+}
+
+function buildCaseReport(caseRows, model, priceYear){
+  var priceCol = model.priceCol, YR3 = model.YR3;
+  var i, j, k;
+  if (!caseRows || !caseRows.length) throw new Error('案件需求檔沒有資料列');
+
+  /* ---- 逐列 → 藥品項目（同 CODE 的多列先合併） ---- */
+  var mergedRows = mergeCaseRowsByCode(caseRows);
+  var items = [], missing = [];
+  for (i=0;i<mergedRows.length;i++){
+    var cr = mergedRows[i], code = txt(cr['CODE']);
+    if (!code) continue;
+    var row = model.byCode[code];
+    if (!row){ missing.push(code); continue; }
+    var lic = txt(cr['領有許可證'], txt(cr['Has_License'],'')).toUpperCase();
+    if (lic !== 'Y' && lic !== 'N') lic = 'Y';
+    var ten = num(cr['十國中位價']);
+    if (ten === 0) ten = null;                       // 查不到或填 0 → 十國藥價法呈現「無」
+    var tenPcts  = parsePcts(cr['十國加計比例']);
+    var costPcts = parsePcts(cr['成本加計比例']);
+    if (!tenPcts.length)  tenPcts  = [0];
+    if (!costPcts.length) costPcts = [0];
+    items.push({
+      code: code, row: row, drug: row.d, caseRow: cr,
+      grp: model.groups[row.grp],
+      atcMode: (function(m){ return (m === 'PREFIX5' || m === 'FULL') ? m : 'BOTH'; })(txt(cr['ATC_MODE'],'BOTH').toUpperCase()),
+      ten: ten, sug: num(cr['廠商建議價']), cost: num(cr['廠商成本']), lic: lic,
+      tenPcts: tenPcts, costPcts: costPcts,
+      vendor: txt(row.d['藥商名稱']) || txt(row.d['藥商簡稱']),
+      letterRefs: cr.__refs && cr.__refs.length ? cr.__refs : ['']
+    });
+  }
+  if (!items.length) throw new Error('主檔中找不到任何案件 CODE：' + (missing.join('、') || '（需求檔無 CODE 欄）'));
+
+  /* ---- 核價試算 ---- */
+  for (i=0;i<items.length;i++){
+    var it = items[i];
+    it.calc = buildItemCalc(it);
+  }
+
+  /* ---- 表一：全案分組代碼聯集，排序 分組代碼↑ → AMT↓ ---- */
+  /* ⚠️ 空白分組代碼不得作為「同分組」的擴張依據 —— 主檔若有多筆分組代碼留白，
+     它們會被彙總成同一個「空白分組」，一旦擴張就會把大量不相干的藥品拉進來。 */
+  var gset = {}, gorder = [], blankGrp = 0;
+  for (i=0;i<items.length;i++){
+    var gc = items[i].row.grp;
+    if (!gc){ blankGrp++; continue; }
+    if (!gset[gc]){ gset[gc]=1; gorder.push(gc); }
+  }
+  var caseCodes = {};
+  for (i=0;i<items.length;i++) caseCodes[items[i].code] = 1;
+
+  /* 分組代碼留白的本案藥品，只列自己，不擴張 */
+  var t1rows = model.rows.filter(function(r){
+    return (r.grp && gset[r.grp]) || (!r.grp && caseCodes[r.code]);
+  });
+  t1rows.sort(function(a,b){
+    if (a.grp !== b.grp) return a.grp < b.grp ? -1 : 1;
+    return b.amtAdj[2] - a.amtAdj[2];
+  });
+  var grpTotal = {};                                  // 占率分母：含 0 元項目
+  for (i=0;i<t1rows.length;i++) grpTotal[t1rows[i].grp] = (grpTotal[t1rows[i].grp] || 0) + t1rows[i].amtAdj[2];
+
+  var table1 = [], n1 = 0;
+  for (i=0;i<t1rows.length;i++){
+    var r = t1rows[i];
+    if (!isCounted(r)) continue;                      // 列出規則同 §3.3（統計分母仍為整組）
+    var amt = r.amtAdj[2];
+    var qty = r.qtyAdj[2];
+    var tot = grpTotal[r.grp] || 0;
+    /* 欄序：項次／藥品名稱／藥商／現行支付價／申報金額／占率／申報量
+       （本案藥品）標記改置於「項次」下方，且僅此四字加粗 */
+    var a = [
+      selfMark(++n1, caseCodes[r.code]),
+      txt(r.d['藥品名稱']),
+      txt(r.d['藥商名稱']) || txt(r.d['藥商簡稱']),
+      (r.price === null || r.price === 0) ? '－' : money(r.price),   // 暫停支付者不顯示 0
+      amt ? fmt(amt) : '－',
+      tot ? adaptivePct(amt/tot*100) : '－',
+      qty ? fmt(qty) : '－'
+    ];
+    a.__self = !!caseCodes[r.code];
+    table1.push(a);
+  }
+  /* 表一備註：列出但支付價欄留「－」的暫停支付項目 */
+  var t1Susp = t1rows.filter(function(r){ return r.price === 0 && isCounted(r); }).length;
+  var table1Notes = t1Susp
+    ? ['註：本表含 ' + t1Susp + ' 項暫時停止支付項目，其現行健保支付價欄以「－」表示。']
+    : [];
+
+  /* ---- 表二：由本案 ATC 找出分組，再以「整個分組」呈現 ---- */
+  /* ATC_MODE = FULL / PREFIX5 / BOTH；BOTH 產生兩張表（7碼全等 + 前5碼相同） */
+  function buildT2Block(mode, memberItems, title){
+    var g2 = {}, g2order = [], ii, jj;
+    for (ii=0;ii<memberItems.length;ii++){
+      var atc7 = atcOf(memberItems[ii].drug);
+      if (!atc7) continue;
+      for (jj=0;jj<model.rows.length;jj++){
+        var rr = model.rows[jj];
+        if (!rr.grp) continue;                    // 分組代碼留白者不作為擴張依據
+        if (!atcMatch(rr.d, atc7, mode)) continue;
+        if (!g2[rr.grp]){ g2[rr.grp] = true; g2order.push(rr.grp); }
+      }
+    }
+    var groups = [], anyMultiAtc = false;
+    for (ii=0;ii<g2order.length;ii++){
+      var gk = g2order[ii];
+      var sub = model.rows.filter(function(x){ return x.grp === gk; });     // 整個分組，不論 ATC
+      var allZero = sub.every(function(x){ return x.price === 0 || x.price === null; });
+      if (allZero) continue;                                                // 全組支付價皆 0 → 不列
+      var atcs = {}, atcList = [];
+      for (jj=0;jj<sub.length;jj++){ var a7 = atcOf(sub[jj].d); if (!atcs[a7]){ atcs[a7]=1; atcList.push(a7); } }
+      atcList.sort();
+      if (atcList.length > 1) anyMultiAtc = true;
+      var ds0 = sub.map(function(x){ return x.d; });
+      groups.push({
+        grp: gk, name: txt(sub[0].d['分組名稱']), atcList: atcList, sub: sub,
+        self: sub.some(function(x){ return caseCodes[x.code]; }),
+        susp: countSuspended(ds0, priceCol)     // 其中屬暫時停止支付者
+      });
+    }
+    groups.sort(function(a,b){ return a.grp < b.grp ? -1 : (a.grp > b.grp ? 1 : 0); });
+    /* 分組代碼留白者不成一個分組，表二是分組層的表，故不列入；
+       這些項目仍會依 ATC 出現在提案附件的 ATC 分頁（項目層清單）。 */
+
+    /* 同ATC5碼的表格固定顯示 ATC7碼／ATC名稱；同ATC7碼的表格僅在分組跨多碼時顯示 */
+    var showAtc = (mode === 'PREFIX5') || anyMultiAtc;
+
+    var head = showAtc
+      ? ['項次','分組名稱','ATC7碼','ATC名稱','項目數','現行健保支付價(' + pyLabel(priceYear) + ')(元)',
+         YR3+'年整組申報金額(元)', YR3+'年整組申報量']
+      : ['項次','分組名稱','項目數','現行健保支付價(' + pyLabel(priceYear) + ')(元)',
+         YR3+'年整組申報金額(元)', YR3+'年整組申報量'];
+    var widths = showAtc ? [12,21,12,14,7,15,16,13] : [11,28,12,17,17,15];
+
+    var rows = [], nItems = 0;
+    for (ii=0;ii<groups.length;ii++){
+      var g = groups[ii];
+      /* 同分組多種 ATC7 碼 → 分列呈現各自數據；分組名稱與項次以合併儲存格呈現 */
+      var buckets = showAtc
+        ? g.atcList.map(function(a){
+            return {atc:a, rows:g.sub.filter(function(x){ return atcOf(x.d) === a; })};
+          })
+        : [{atc:null, rows:g.sub}];
+      for (jj=0;jj<buckets.length;jj++){
+        var bk = buckets[jj], ds = bk.rows.map(function(x){ return x.d; });
+        var cnt = countValid(ds, priceCol);        // 價格≠0，或 價格=0 且 不良品暫停支付註記=Y
+        nItems += cnt;
+        var amt = 0, qty = 0;
+        for (var kk=0;kk<bk.rows.length;kk++){ amt += bk.rows[kk].amtAdj[2]; qty += bk.rows[kk].qtyAdj[2]; }
+        var tail = [
+          String(cnt),
+          priceRange(ds, priceCol, '、', true) || '－',            // 支付價不顯示 0 元
+          amt ? fmt(Math.round(amt)) : '－',
+          qty ? fmt(Math.round(qty)) : '－'
+        ];
+        var a = showAtc
+          ? [selfMark(ii+1, g.self), g.name, bk.atc || '－', txt(ds[0]['ATC名稱']) || '－'].concat(tail)
+          : [selfMark(ii+1, g.self), g.name].concat(tail);
+        a.__self  = g.self;
+        a.__first = (jj === 0);
+        a.__span  = buckets.length;
+        rows.push(a);
+      }
+    }
+    var notes = [];
+    for (ii=0;ii<groups.length;ii++)
+      if (groups[ii].susp > 0)
+        notes.push('註：' + groups[ii].name + '之項目數包含 ' + groups[ii].susp + ' 項暫時停止支付項目。');
+    return {mode:mode, title:title, head:head, widths:widths, rows:rows, notes:notes,
+            showAtc:showAtc, nGroups:groups.length, nItems:nItems,
+            grpCodes:groups.map(function(g){ return g.grp; })};
+  }
+
+  var t2blocks = [];
+  var t2full = items.filter(function(x){ return x.atcMode === 'FULL'    || x.atcMode === 'BOTH'; });
+  var t2pre5 = items.filter(function(x){ return x.atcMode === 'PREFIX5' || x.atcMode === 'BOTH'; });
+  if (t2full.length) t2blocks.push(buildT2Block('FULL',    t2full, '同ATC7碼'));
+  if (t2pre5.length) t2blocks.push(buildT2Block('PREFIX5', t2pre5, '同ATC前5碼'));
+
+  /* ---- 表五：廠商建議（每項藥品一列） ---- */
+  var table5 = items.map(function(it){
+    var tot = (it.row.grp && it.grp) ? it.grp.amtSum[2] : 0;   /* 分組代碼留白 → 占率印「－」 */
+    return [
+      txt(it.drug['藥品名稱']),
+      txt(it.drug['分組名稱']),
+      it.row.price === null ? '－' : money(it.row.price),
+      it.sug === null ? BLANK : money(it.sug),
+      tot ? adaptivePct(it.row.amtAdj[2]/tot*100) : '－',
+      it.cost === null ? BLANK : money(it.cost),
+      it.ten === null ? '無' : money(it.ten)
+    ];
+  });
+
+  /* ---- 來文（藥商 + 文號）去重 ---- */
+  var seenL = {}, letters = [];
+  for (i=0;i<items.length;i++){
+    var refs = items[i].letterRefs;
+    for (j=0;j<refs.length;j++){
+      var key = items[i].vendor + '|' + refs[j];
+      if (seenL[key]) continue;
+      seenL[key] = 1;
+      letters.push({vendor: items[i].vendor, ref: refs[j]});
+    }
+  }
+
+  /* ---- 第40條：全案彙總 ---- */
+  var lt5 = 0, l550 = 0, ge50 = 0;
+  for (i=0;i<items.length;i++){
+    var vs = items[i].calc.allPrices;
+    for (j=0;j<vs.length;j++){
+      var v = vs[j];
+      if (v === null) continue;
+      if (v < 5) lt5 = 1; else if (v < 50) l550 = 1; else ge50 = 1;
+    }
+  }
+
+  /* ---- 註1／註2：相同者只印一次 ---- */
+  var noteMap = {}, notes = [];
+  for (i=0;i<items.length;i++){
+    var c = items[i].calc;
+    var nk = c.a10Law + '|' + c.costLaw;
+    if (!noteMap[nk]){ noteMap[nk] = {a10Law:c.a10Law, costLaw:c.costLaw, idx:[], lics:{}, licOrder:[]}; notes.push(noteMap[nk]); }
+    var nn = noteMap[nk];
+    nn.idx.push(i+1);
+    if (!nn.lics[c.licNote]){ nn.lics[c.licNote] = []; nn.licOrder.push(c.licNote); }
+    nn.lics[c.licNote].push(i+1);
+  }
+
+  return {
+    items: items, missing: missing, priceYear: priceYear, priceCol: priceCol,
+    baseYear: model.baseYear, dataYear: YR3, model: model,
+    reporter: firstNonEmpty(caseRows, '報告人') || BLANK,
+    letters: letters, grpUnion: gorder, caseCodes: caseCodes, blankGrp: blankGrp,
+    table1: table1, table1Notes: table1Notes, table2Blocks: t2blocks, table5: table5,
+    table1Head: T1H(YR3, priceYear), table1W: T1W,
+    table5Head: T5H(YR3, priceYear), table5W: T5W,
+    letterSentence: joinLetters(letters),
+    notes: notes, art40: article40Text(lt5, l550, ge50),
+    subject: '有關' + items[0].vendor + '藥品「'
+           + txt(items[0].drug['藥品名稱']) + '」建議調高其健保支付價格案，提請討論。'
+  };
+}
+
+/* 單一藥品的核價試算矩陣 */
+function buildItemCalc(it){
+  /* 分組代碼留白的藥品沒有可用的分組層統計 —— 不可拿「空白分組」的彙總當級距與平均申報量 */
+  var grp = (it.row.grp && it.grp) ? it.grp : {};
+  var avg = (grp.avgQty3 === undefined) ? null : grp.avgQty3;
+  var nhi = it.row.price;
+  var tenVals  = (it.ten === null) ? [null] : it.tenPcts.map(function(p){ return a10RefPrice(it.ten, p/100); });
+  var tenHead  = (it.ten === null) ? ['－']  : it.tenPcts.map(function(p){ return p + '%'; });
+  var costVals = (it.cost === null) ? it.costPcts.map(function(){ return null; })
+                                    : it.costPcts.map(function(p){ return costRefPrice(it.cost, p/100, it.lic); });
+  var costHead = it.costPcts.map(function(p){ return p + '%'; });
+
+  function pTxt(v, noTen){ return noTen ? '無' : (v === null ? '－' : String(v)); }
+  function amtTxt(v, noTen){
+    if (noTen) return '無';
+    if (v === null || avg === null) return '－';
+    return formatAmt(v * avg);
+  }
+  function impTxt(v, noTen){
+    if (noTen) return '無';
+    if (v === null || avg === null || nhi === null) return '－';
+    return formatAmt((v - nhi) * avg);
+  }
+  var noTen = (it.ten === null);
+  var tier = amtTier(grp.monthlyAmt === undefined ? null : grp.monthlyAmt);
+  return {
+    tenHead: tenHead, costHead: costHead,
+    tenVals: tenVals, costVals: costVals,
+    priceRow:  tenVals.map(function(v){ return pTxt(v, noTen); }).concat(costVals.map(function(v){ return pTxt(v); })),
+    totalRow:  tenVals.map(function(v){ return amtTxt(v, noTen); }).concat(costVals.map(function(v){ return amtTxt(v); })),
+    impactRow: tenVals.map(function(v){ return impTxt(v, noTen); }).concat(costVals.map(function(v){ return impTxt(v); })),
+    allPrices: (noTen ? [] : tenVals).concat(costVals),
+    noTen: noTen, avgQty: avg, monthlyAmt: grp.monthlyAmt,
+    tier: tier,
+    a10Pct:  tier === null ? null : A10_TIER_PCT[tier],
+    costPct: tier === null ? null : COST_TIER_PCT[tier],
+    a10Law:  tier === null ? '' : '參考十國藥價法' + A10_TIER_LAW[tier],
+    costLaw: tier === null ? '' : '參考成本價法'   + COST_TIER_LAW[tier],
+    licNote: LIC_NOTE[String(it.lic).toUpperCase()] || ''
+  };
+}
+
+/* 表一：刪除「整組每月平均申報金額」，申報量移至最後；金額／數量欄名帶年度 */
+function T1H(yr3, py){
+  return ['項次','藥品名稱','藥商','現行健保支付價(' + pyLabel(py) + ')(元)',
+          yr3 + '年整組申報金額(元)', yr3 + '年占率', yr3 + '年整組申報量'];
+}
+
+var T1W = [11,21,12,14,14,8,12];
+
+function T5H(yr3, py){
+  return ['藥品名稱','分類分組名稱','現行支付價(' + pyLabel(py) + ')(元)','廠商建議價(元)',
+          yr3 + '年廠商占率','廠商成本(元)','十國藥價中位數(元)'];
+}
+
+var T5W = [21,23,13,12,10,10,12];
+
+/* 核價試算小表（合併儲存格） */
+function calcTableRows(it, priceYear){
+  var c = it.calc;
+  var n1 = c.tenHead.length, n2 = c.costHead.length, i;
+  var hd = {shade:SHADE_HD, b:true};
+  var r1 = [{t:'健保價(' + pyLabel(priceYear) + ')', span:1, shade:SHADE_HD, b:true},
+            {t:'廠商建議價', span:1, shade:SHADE_HD, b:true},
+            {t:'核價方式', span:n1+n2, shade:SHADE_HD, b:true}];
+  /* 註1／註2 以上標呈現 */
+  var r2 = [{t: it.row.price === null ? '－' : money(it.row.price)},
+            {t: it.sug === null ? '－' : money(it.sug)},
+            {t: segCell([{t:'十國藥價中位數', b:true}, {t:'註1', b:true, sup:true}]),
+             span:n1, shade:SHADE_HD, b:true},
+            {t: segCell([{t:'參考成本價', b:true}, {t:'註2', b:true, sup:true}]),
+             span:n2, shade:SHADE_HD, b:true}];
+  var r3 = [{t:'加計比例', span:2, shade:SHADE_HD, b:true}];
+  for (i=0;i<n1;i++) r3.push({t:c.tenHead[i], shade:SHADE_HD, b:true});
+  for (i=0;i<n2;i++) r3.push({t:c.costHead[i], shade:SHADE_HD, b:true});
+  function dataRow(label, vals){
+    var r = [{t:label, span:2, shade:SHADE_HD, b:true}];
+    for (var k=0;k<vals.length;k++) r.push({t:vals[k]});
+    return r;
+  }
+  var weights = [13,13];
+  for (i=0;i<n1+n2;i++) weights.push(74/(n1+n2));
+  return {rows:[r1, r2, r3,
+                dataRow('調高後支付價', c.priceRow),
+                dataRow('整體藥費',     c.totalRow),
+                dataRow('財務衝擊',     c.impactRow)],
+          weights: weights};
+}
+</script>
+<script type="text/plain" data-mod="assets/js/docx-writer.js">
+'use strict';
+/* DOCX OOXML 引擎（僅 Path B 載入） */
+
+var FONTS = '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="標楷體" w:cs="Times New Roman"/>';
+
+var SZ    = 28;          /* 14pt */
+var LINE  = 480;         /* 固定行高 24pt */
+
+function runs(text, opt){
+  opt = opt || {};
+  var sz = opt.sz || SZ;
+  var rpr = '<w:rPr>' + FONTS + (opt.b ? '<w:b/>' : '')
+    + '<w:sz w:val="'+sz+'"/><w:szCs w:val="'+sz+'"/></w:rPr>';
+  var lines = String(text === undefined || text === null ? '' : text).split('\n');
+  var out = '';
+  for (var i=0;i<lines.length;i++){
+    if (i) out += '<w:r>'+rpr+'<w:br/></w:r>';
+    out += '<w:r>'+rpr+'<w:t xml:space="preserve">'+esc(lines[i])+'</w:t></w:r>';
+  }
+  return out;
+}
+
+/* w:pPr 子元素順序須遵守 schema：numPr → tabs → spacing → ind → jc → rPr */
+function pPr(opt){
+  opt = opt || {};
+  var sz = opt.sz || SZ;
+  var x = '<w:pPr>';
+  if (opt.numId) x += '<w:numPr><w:ilvl w:val="'+(opt.ilvl||0)+'"/><w:numId w:val="'+opt.numId+'"/></w:numPr>';
+  if (opt.tabRight) x += '<w:tabs><w:tab w:val="right" w:pos="'+opt.tabRight+'"/></w:tabs>';
+  x += '<w:spacing w:before="'+(opt.before||0)+'" w:after="'+(opt.after===undefined?0:opt.after)+'"'
+     + ' w:line="'+(opt.line || LINE)+'" w:lineRule="'+(opt.lineRule||'exact')+'"/>';
+  if (opt.indent !== undefined) x += '<w:ind w:left="'+opt.indent+'"'+(opt.hanging?' w:hanging="'+opt.hanging+'"':'')+'/>';
+  if (opt.align) x += '<w:jc w:val="'+opt.align+'"/>';
+  x += '<w:rPr>'+FONTS+(opt.b?'<w:b/>':'')+'<w:sz w:val="'+sz+'"/><w:szCs w:val="'+sz+'"/></w:rPr>';
+  return x + '</w:pPr>';
+}
+
+/* 同一段落中混排不同格式的文字段：[{t:'…', b:true, sup:true, sz:22}, …] */
+function segRuns(segs, opt){
+  opt = opt || {};
+  var base = opt.sz || SZ, out = '';
+  for (var i=0;i<segs.length;i++){
+    var s = segs[i] || {}, sz = s.sz || base;
+    var rpr = '<w:rPr>' + FONTS + (s.b ? '<w:b/>' : '')
+      + '<w:sz w:val="'+sz+'"/><w:szCs w:val="'+sz+'"/>'
+      + (s.sup ? '<w:vertAlign w:val="superscript"/>' : '') + '</w:rPr>';
+    var lines = String(s.t === undefined || s.t === null ? '' : s.t).split('\n');
+    for (var j=0;j<lines.length;j++){
+      if (j) out += '<w:r>'+rpr+'<w:br/></w:r>';
+      out += '<w:r>'+rpr+'<w:t xml:space="preserve">'+esc(lines[j])+'</w:t></w:r>';
+    }
+  }
+  return out;
+}
+
+function paraSeg(segs, opt){ return '<w:p>' + pPr(opt) + segRuns(segs, opt) + '</w:p>'; }
+
+/* 儲存格值可為字串，或 {seg:[…]} 以混排格式 */
+function segCell(list){ return {seg:list}; }
+
+function isSeg(v){ return !!(v && typeof v === 'object' && v.seg); }
+
+function segText(v){
+  if (!isSeg(v)) return v === undefined || v === null ? '' : String(v);
+  return v.seg.map(function(s){ return s.t === undefined ? '' : String(s.t); }).join('');
+}
+
+function para(text, opt){ return '<w:p>' + pPr(opt) + runs(text, opt) + '</w:p>'; }
+
+function paraTab(left, right, opt){
+  opt = opt || {}; opt.tabRight = 9020;
+  var sz = opt.sz || SZ;
+  var rpr = '<w:rPr>'+FONTS+(opt.b?'<w:b/>':'')+'<w:sz w:val="'+sz+'"/><w:szCs w:val="'+sz+'"/></w:rPr>';
+  return '<w:p>' + pPr(opt)
+    + '<w:r>'+rpr+'<w:t xml:space="preserve">'+esc(left)+'</w:t></w:r>'
+    + '<w:r>'+rpr+'<w:tab/><w:t xml:space="preserve">'+esc(right)+'</w:t></w:r>'
+    + '</w:p>';
+}
+
+/* ---- 表格 ---- */
+var BORDERS = '<w:tblBorders>'
+  + ['top','left','bottom','right','insideH','insideV'].map(function(s){
+      return '<w:'+s+' w:val="single" w:sz="6" w:space="0" w:color="000000"/>';
+    }).join('')
+  + '</w:tblBorders>';
+
+var SHADE_HD = 'D9D9D9';
+
+function tblOpen(w, totalW){
+  var xml = '<w:tbl><w:tblPr><w:tblW w:w="'+totalW+'" w:type="dxa"/>'
+          + '<w:jc w:val="center"/>' + BORDERS
+          + '<w:tblCellMar><w:top w:w="30" w:type="dxa"/><w:bottom w:w="30" w:type="dxa"/>'
+          + '<w:left w:w="60" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar>'
+          + '</w:tblPr><w:tblGrid>';
+  for (var i=0;i<w.length;i++) xml += '<w:gridCol w:w="'+w[i]+'"/>';
+  return xml + '</w:tblGrid>';
+}
+
+function widthsOf(weights, totalW){
+  var sum = weights.reduce(function(a,b){return a+b;},0);
+  return weights.map(function(x){ return Math.round(x/sum*totalW); });
+}
+
+function tcell(txt, wid, opt){
+  opt = opt || {};
+  var pr = '<w:tcPr><w:tcW w:w="'+wid+'" w:type="dxa"/>';
+  if (opt.span > 1) pr += '<w:gridSpan w:val="'+opt.span+'"/>';
+  if (opt.vm === 'restart') pr += '<w:vMerge w:val="restart"/>';
+  else if (opt.vm === 'cont') pr += '<w:vMerge/>';
+  if (opt.shade) pr += '<w:shd w:val="clear" w:color="auto" w:fill="'+opt.shade+'"/>';
+  pr += '<w:vAlign w:val="center"/></w:tcPr>';
+  var pOpt = {sz:opt.sz||24, b:opt.b, align:opt.align, after:0, line:opt.line||320, lineRule:'auto'};
+  var body;
+  if (opt.vm === 'cont') body = para('', pOpt);
+  else if (isSeg(txt))   body = paraSeg(txt.seg, pOpt);
+  else                   body = para(txt, pOpt);
+  return '<w:tc>' + pr + body + '</w:tc>';
+}
+
+var NUMLIKE = /^[\d,.\s%－\-億萬元]*$/;
+
+/* 一般表格：head 為字串陣列，rows 為值陣列 */
+function docTable(head, rows, weights, totalW, sz){
+  totalW = totalW || 9020;
+  var w = widthsOf(weights, totalW), i;
+  var xml = tblOpen(w, totalW);
+  xml += '<w:tr><w:trPr><w:tblHeader/></w:trPr>';
+  for (i=0;i<head.length;i++) xml += tcell(head[i], w[i], {b:true, align:'center', shade:SHADE_HD, sz:sz});
+  xml += '</w:tr>';
+  for (var r=0;r<rows.length;r++){
+    xml += '<w:tr>';
+    for (i=0;i<head.length;i++){
+      var v = rows[r][i];
+      var isNum = typeof v === 'string' && NUMLIKE.test(v) && v !== '';
+      /* 資料列一律不加粗；只有 {seg:[…]} 內個別文字段可自帶粗體 */
+      xml += tcell(v, w[i], {sz:sz,
+        align: rows[r].__center ? 'center' : (isNum ? 'right' : (isSeg(v) ? 'center' : 'left'))});
+    }
+    xml += '</w:tr>';
+  }
+  return xml + '</w:tbl>';
+}
+
+/* 進階表格：rows = [[{t,span,vm,b,align,shade}, …], …]，可合併儲存格 */
+function docTableRaw(rows, weights, totalW, sz){
+  totalW = totalW || 9020;
+  var w = widthsOf(weights, totalW);
+  var xml = tblOpen(w, totalW);
+  for (var r=0;r<rows.length;r++){
+    xml += '<w:tr>' + (r === 0 ? '<w:trPr><w:tblHeader/></w:trPr>' : '');
+    var col = 0;
+    for (var i=0;i<rows[r].length;i++){
+      var c = rows[r][i] || {};
+      var span = c.span || 1, wid = 0;
+      for (var k=0;k<span;k++) wid += (w[col+k] || 0);
+      xml += tcell(c.t === undefined ? '' : c.t, wid, {
+        span: span, vm: c.vm, b: c.b, shade: c.shade,
+        align: c.align || 'center', sz: c.sz || sz
+      });
+      col += span;
+    }
+    xml += '</w:tr>';
+  }
+  return xml + '</w:tbl>';
+}
+
+/* ---- 章節與封裝 ---- */
+var SECT_PORTRAIT  = '<w:pgSz w:w="11906" w:h="16838"/>'
+  + '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1418" w:header="851" w:footer="992" w:gutter="0"/>'
+  + '<w:docGrid w:type="lines" w:linePitch="360"/>';
+
+var SECT_LANDSCAPE = '<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>'
+  + '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1418" w:header="851" w:footer="992" w:gutter="0"/>'
+  + '<w:docGrid w:type="lines" w:linePitch="360"/>';
+
+var LAND_W = 16838 - 1418 - 1134;
+
+function sectBreak(sect){ return '<w:p><w:pPr><w:sectPr>' + sect + '</w:sectPr></w:pPr></w:p>'; }
+
+/* 多階編號：一、 →（一）→ 1. */
+var NUM_ID = 1;
+
+function numberingXml(){
+  function lvl(i, fmt, text, left, hang){
+    return '<w:lvl w:ilvl="'+i+'"><w:start w:val="1"/><w:numFmt w:val="'+fmt+'"/>'
+      + '<w:lvlText w:val="'+esc(text)+'"/><w:lvlJc w:val="left"/>'
+      + '<w:pPr><w:ind w:left="'+left+'" w:hanging="'+hang+'"/></w:pPr>'
+      + '<w:rPr>'+FONTS+'</w:rPr></w:lvl>';
+  }
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    + '<w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="multilevel"/>'
+    /* 縮排以 14pt 中文字寬 280 twips 為單位：
+       第一層「一、」起排於 1 個字元（280）、第二層「（一）」起排於 1.5 個字元（420） */
+    + lvl(0, 'chineseCounting', '%1、',   840,  560)   /* 280 + 標籤 2 字 */
+    + lvl(1, 'chineseCounting', '（%2）', 1260, 840)   /* 420 + 標籤 3 字 */
+    + lvl(2, 'decimal',         '%3.',   1680, 420)
+    + lvl(3, 'decimal',         '(%4)',  2100, 420)
+    + '</w:abstractNum>'
+    + '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>'
+    + '</w:numbering>';
+}
+
+function buildDocx(bodyXml){
+  var doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    + '<w:body>' + bodyXml
+    + '<w:sectPr>' + SECT_PORTRAIT + '</w:sectPr></w:body></w:document>';
+  var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    + '<w:docDefaults><w:rPrDefault><w:rPr>'+FONTS+'<w:sz w:val="'+SZ+'"/><w:szCs w:val="'+SZ+'"/></w:rPr></w:rPrDefault>'
+    + '<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="'+LINE+'" w:lineRule="exact"/></w:pPr></w:pPrDefault>'
+    + '</w:docDefaults>'
+    + '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/>'
+    + '<w:qFormat/></w:style>'
+    + '</w:styles>';
+  var ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+    + '<Default Extension="xml" ContentType="application/xml"/>'
+    + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+    + '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+    + '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>'
+    + '</Types>';
+  var rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+    + '</Relationships>';
+  var drels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+    + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>'
+    + '</Relationships>';
+  return zipWrite([
+    {name:'[Content_Types].xml',          data:TE.encode(ct)},
+    {name:'_rels/.rels',                  data:TE.encode(rels)},
+    {name:'word/document.xml',            data:TE.encode(doc)},
+    {name:'word/styles.xml',              data:TE.encode(styles)},
+    {name:'word/numbering.xml',           data:TE.encode(numberingXml())},
+    {name:'word/_rels/document.xml.rels', data:TE.encode(drels)}
+  ]);
+}
+</script>
+<script type="text/plain" data-mod="assets/js/exporters/docx-report.js">
+'use strict';
+/* 提案 Word 組字（僅 Path B 載入） */
+
+var L0 = {numId:NUM_ID, ilvl:0};
+
+var L1 = {numId:NUM_ID, ilvl:1};
+
+var L2 = {numId:NUM_ID, ilvl:2};
+
+function lv(base, extra){
+  var o = {}, k;
+  for (k in base) o[k] = base[k];
+  if (extra) for (k in extra) o[k] = extra[k];
+  return o;
+}
+
+var GAP = function(){ return para('', {sz:16, line:160}); };
+
+/* 表二 → docTableRaw 用的儲存格陣列；同分組跨多 ATC7 碼時，項次與分組名稱垂直合併 */
+function t2RawRows(bk){
+  var out = [bk.head.map(function(h){ return {t:h, shade:SHADE_HD, b:true}; })];
+  for (var r=0;r<bk.rows.length;r++){
+    var src = bk.rows[r], multi = (src.__span || 1) > 1;
+    var al = bk.showAtc
+      ? ['center','left','center','left','center','right','right','right']
+      : ['center','left','center','right','right','right'];
+    var cells = src.map(function(v, i){
+      var c = {t:v, align: al[i] || 'center'};
+      if (multi && i <= 1) c.vm = src.__first ? 'restart' : 'cont';
+      return c;
+    });
+    out.push(cells);
+  }
+  return out;
+}
+
+function reportToDocx(rep){
+  var b = '', i, j;
+  var YR3 = rep.dataYear;
+
+  b += paraTab('提案', '報告人：' + rep.reporter, {b:true, after:120});
+  b += para('案由：' + rep.subject, {indent:640, hanging:640, after:120});
+  b += para('說明：', {after:60});
+
+  /* 一、依據 — 不分項，「、」分隔，末筆以「及」連接 */
+  b += para('依據' + rep.letterSentence + '辦理。', L0);
+
+  /* 二、藥品資訊 + 表1 表2 */
+  b += para('本案藥品健保收載情形說明如下：', L0);
+  for (i=0;i<rep.items.length;i++){
+    var it = rep.items[i], d = it.drug;
+    var cls = drugClassLabel(d);
+    var ord = catOrdinal(d['分類']);
+    var yrs = (function(){ var ly = ad8(d['收載日期']); return ly === null ? null : rep.baseYear - ly; })();
+    var listed = yrs === null ? '超過／未滿' : (yrs >= 15 ? '超過' : '未滿');
+    var atc7 = atcOf(d), atcNm = txt(d['ATC名稱']);
+    b += para(txt(d['藥品名稱']) + '（健保代碼 ' + it.code + '）之主成分、劑型、含量為「'
+              + (txt(d['分組名稱']) || BLANK) + '」，屬' + (cls || BLANK)
+              + '，屬健保收載' + listed + '15年之' + (ord || '＿') + '大類藥品，適應症「'
+              + (txt(it.caseRow['藥品治療用途']) || txt(d['適應症']) || BLANK) + '」，ATC7碼為'
+              + (atc7 || '＿') + (atcNm ? ' ' + atcNm : '') + '。', L1);
+  }
+  b += para('查健保收載同分組藥品共計' + rep.table1.length + '項(P-)：', lv(L1, {after:40}));
+  b += docTable(rep.table1Head, rep.table1, rep.table1W);
+  for (j=0;j<rep.table1Notes.length;j++) b += para(rep.table1Notes[j], {sz:22, indent:640, after:0});
+  b += GAP();
+  for (i=0;i<rep.table2Blocks.length;i++){
+    var bk = rep.table2Blocks[i];
+    var lbl = bk.mode === 'PREFIX5' ? '相同ATC 5碼' : '相同ATC 7碼';
+    b += para('查健保收載' + lbl + '藥品共計' + bk.nGroups + '分組、' + bk.nItems + '項目(P-)：',
+              lv(L1, {after:40}));
+    b += docTableRaw(t2RawRows(bk), bk.widths);
+    for (j=0;j<bk.notes.length;j++) b += para(bk.notes[j], {sz:22, indent:640, after:0});
+    b += GAP();
+  }
+
+  /* 三、四 — 留白讓承辦人填 */
+  b += para('經洽詢廠商供應狀況，本藥品' + BLANK + BLANK + '。', L0);
+  b += para('經詢問其他廠商，' + BLANK + BLANK + BLANK + '。', L0);
+
+  /* 五、廠商建議 */
+  b += para('今' + rep.items[0].vendor + '等來函建議提高健保支付價(P-)：', lv(L0, {after:40}));
+  b += docTable(rep.table5Head, rep.table5, rep.table5W);
+  b += GAP();
+
+  /* 六、核價試算 */
+  b += para('依「全民健康保險藥物給付項目及支付標準」第35條特殊藥品支付價格訂定原則，'
+          + '本案藥品就不同核價方式試算之支付價格及財務衝擊如下：（單位：元；財務衝擊為年度推估）', L0);
+  for (i=0;i<rep.items.length;i++){
+    var itm = rep.items[i];
+    b += para(txt(itm.drug['藥品名稱']) + '（藥品代碼：' + itm.code + '）', lv(L1, {after:40}));
+    var ct = calcTableRows(itm, rep.priceYear);
+    b += docTableRaw(ct.rows, ct.weights);
+    /* 表格下方備註：帶出級距判定與整體藥費所用的兩個數字 */
+    var mo = itm.calc.monthlyAmt, av = itm.calc.avgQty;
+    b += para('　整組每月平均申報金額(' + YR3 + '年)：'
+            + (mo === null || mo === undefined ? '－' : fmt(Math.round(mo))) + ' 元；'
+            + '同分組近三年平均申報量：'
+            + (av === null || av === undefined ? '－' : fmt(Math.round(av))),
+            {sz:22, indent:960});
+    b += GAP();
+  }
+  /* 註1／註2 */
+  for (i=0;i<rep.notes.length;i++){
+    var nt = rep.notes[i];
+    var tag = rep.notes.length > 1 ? '（項次 ' + nt.idx.join('、') + '）' : '';
+    b += para('註1：' + tag + nt.a10Law, {sz:22, indent:1200, hanging:560});
+    b += para('註2：' + tag + nt.costLaw, {sz:22, indent:1200, hanging:560});
+    b += para('2.領有藥物許可證者，得加計繳納藥害救濟徵收金比率及營業稅。', {sz:22, indent:1200});
+    for (j=0;j<nt.licOrder.length;j++){
+      var lt = nt.licOrder.length > 1 ? '（項次 ' + nt.lics[nt.licOrder[j]].join('、') + '）' : '';
+      b += para('  ' + lt + nt.licOrder[j], {sz:22, indent:1200});
+    }
+  }
+  b += para(rep.art40, {sz:22, indent:960, hanging:0});
+  b += para('※ 整體藥費＝調高後支付價 × 同分組近三年平均申報量(QTY)', {sz:22, indent:960});
+  b += para('※ 財務衝擊＝(調高後支付價 － 健保價) × 同分組近三年平均申報量(QTY)', {sz:22, indent:960});
+  b += GAP();
+
+  /* 七、八 */
+  b += para('本案經諮詢藥品專家之意見如下：', L0);
+  b += para('專家意見一(P-)：' + BLANK + BLANK, L1);
+  b += para('專家意見二(P-)：' + BLANK + BLANK, L1);
+  b += para('專家意見三(P-)：' + BLANK + BLANK, L1);
+  b += para('本案是否提高藥價及方式？提請全體諮詢專家共同討論。', L0);
+
+  return buildDocx(b);
+}
+</script>
+<script type="text/plain" data-mod="assets/js/exporters/attachment-workbook.js">
+'use strict';
+/* 提案附件 Excel */
+
+var ATT_HEAD_FIXED = ['分組代碼','項目','ATC7碼','ATC名稱','CODE','中文名稱','藥品名稱'];
+
+/* fixedRow=true：所有資料列鎖定固定列高，不隨 適應症 等長文字自動變高（列數極多的分頁用） */
+function attachSheet(name, title, scopeRows, model, priceYear, caseCodes, fixedRow){
+  var YR1 = model.YR1, YR2 = model.YR2, YR3 = model.YR3, priceCol = model.priceCol;
+  var i, j;
+  /* scopeRows＝本分頁的「納入範圍」，含依列出規則不會印出的項目（小計要涵蓋它們）。
+     列出規則（§3.3.1 規則 B）：支付價 ≠ 0；或支付價 ＝ 0 且 不良品暫停支付註記 = 'Y'。
+     申報量／金額一律採 qtyAdj／amtAdj（規則 A：依支付價與生效日期做年度歸零）。 */
+  var sel = scopeRows.slice();
+
+  /* 排序：調劑大類↑ → 分組代碼↑ → 0元置後 → 許可證層級加總AMT↓ → 當期AMT↓ → CODE↑ */
+  var wt = {};
+  for (i=0;i<sel.length;i++){
+    var wk = sel[i].grp + '' + sel[i].code.substring(0,8);
+    wt[wk] = (wt[wk] || 0) + sel[i].amt[2];
+  }
+  sel.sort(function(a,b){
+    var na = a.grp ? 0 : 1, nb = b.grp ? 0 : 1;      /* 未編分組代碼者排最後 */
+    if (na !== nb) return na - nb;
+    var ca = catLabel(a.d['分類']), cb = catLabel(b.d['分類']);
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    if (a.grp !== b.grp) return a.grp < b.grp ? -1 : 1;
+    var za = (a.price === 0 ? 1 : 0), zb = (b.price === 0 ? 1 : 0);
+    if (za !== zb) return za - zb;
+    var wa = wt[a.grp+''+a.code.substring(0,8)] || 0;
+    var wb2 = wt[b.grp+''+b.code.substring(0,8)] || 0;
+    if (wa !== wb2) return wb2 - wa;
+    if (a.amt[2] !== b.amt[2]) return b.amt[2] - a.amt[2];
+    return a.code < b.code ? -1 : 1;
+  });
+
+  var H = ATT_HEAD_FIXED.concat([
+    '支付價' + priceYear, '藥品分類_名稱', '必要藥品', '分組名稱', '劑型', '適應症', '藥商名稱',
+    YR1+'年申報量', YR1+'年申報金額', YR2+'年申報量', YR2+'年申報金額', YR3+'年申報量', YR3+'年申報金額'
+  ]);
+  var NCOL = H.length;                         /* 20 欄：A…T */
+  var ST = H.map(styleForHeader);
+  ST[0] = ST[2] = ST[4] = XS.BODY;             /* 分組代碼／ATC7碼／CODE 為文字 */
+  ST[8] = ST[9] = XS.BODY;                     /* 藥品分類_名稱／必要藥品 */
+
+  /* 標題與說明置於 B 欄，與列印範圍（B 起）對齊 */
+  var aoa = [
+    ['', xcell(title, XS.TITLE)],
+    ['', xcell('※本表只列出支付價≠0，或支付價=0且不良品暫停支付註記=Y 的項目　'
+         + '※申報量／金額已依支付價與生效日期做年度歸零　'
+         + '※灰底小計為本表納入範圍內該分組的加總（含未列出之0元項目）　'
+         + '※A欄「分組代碼」僅供審查，已排除於列印範圍　'
+         + '※支付價欄位為 ' + pyLabel(priceYear) + ' 健保支付價', XS.NOTE)],
+    H.map(function(h){ return xcell(h, XS.HEAD); })
+  ];
+  var seq = 0, gAmt = [0,0,0], gQty = [0,0,0], cur = null, buf = [];
+
+  /* 分組小計＝「本分頁納入範圍內」該分組的全部項目加總（含依列出規則未印出者）。
+     同分組分頁的範圍就是整組，因此其小計＝Word 表二的「整組申報金額／申報量」。
+     ATC 分頁的範圍是 ATC 相符的項目，小計即該分組在本頁的部分。
+     兩種情況不印小計：
+       (a) 該分組一列都沒印出（整組支付價皆為 0 且無不良品註記）→ 整個分組不出現
+       (b) 分組代碼留白 → 那是一群「各自獨立、未編分組」的項目，不是一個分組 */
+  function subtotalRow(gcode){
+    var g = model.groups[gcode];
+    var row = new Array(NCOL);
+    for (var k=0;k<NCOL;k++) row[k] = xcell('', XS.SUB);
+    row[0]  = xcell(gcode, XS.SUB);
+    row[6]  = xcell('分組小計', XS.SUB);
+    row[10] = xcell(g ? g.name : '', XS.SUB);
+    row[14] = xcell(Math.round(gQty[0]), XS.SUBINT);
+    row[15] = xcell(Math.round(gAmt[0]), XS.SUBINT);
+    row[16] = xcell(Math.round(gQty[1]), XS.SUBINT);
+    row[17] = xcell(Math.round(gAmt[1]), XS.SUBINT);
+    row[18] = xcell(Math.round(gQty[2]), XS.SUBINT);
+    row[19] = xcell(Math.round(gAmt[2]), XS.SUBINT);
+    return row;
+  }
+  function flush(){
+    if (!buf.length) return;                       /* (a) 一列都沒印出 → 連小計都不出現 */
+    for (var k=0;k<buf.length;k++){
+      buf[k][1] = xcell(++seq, buf[k][1] && buf[k][1].s !== undefined ? buf[k][1].s : XS.BODY);
+      aoa.push(buf[k]);
+    }
+    if (cur) aoa.push(subtotalRow(cur));            /* (b) 分組代碼留白 → 不印小計 */
+    buf = [];
+  }
+
+  var shown = 0;
+  for (i=0;i<sel.length;i++){
+    var r = sel[i], d = r.d;
+    if (cur !== null && r.grp !== cur){ flush(); gAmt = [0,0,0]; gQty = [0,0,0]; }
+    cur = r.grp;
+    /* 小計涵蓋範圍內全部項目，不受列出規則影響 */
+    for (j=0;j<3;j++){ gQty[j] += r.qtyAdj[j]; gAmt[j] += r.amtAdj[j]; }
+    if (!isCounted(r)) continue;                   // 不列出，但已計入小計
+    shown++;
+    var vals = [
+      r.grp, 0, atcOf(d), txt(d['ATC名稱']), r.code,
+      txt(d['中文名稱']), txt(d['藥品名稱']),
+      (r.price === 0 ? '－' : r.price),             /* 暫停支付者不顯示 0，同 Word 表一／表二 */
+      txt(d['藥品分類_名稱']), essentialLabel(d['必要藥品']),   /* [D17] 代碼 → 意義 */
+      txt(d['分組名稱']), txt(d['劑型']), txt(d['適應症']), txt(d['藥商名稱']),
+      Math.round(r.qtyAdj[0]), Math.round(r.amtAdj[0]),
+      Math.round(r.qtyAdj[1]), Math.round(r.amtAdj[1]),
+      Math.round(r.qtyAdj[2]), Math.round(r.amtAdj[2])
+    ];
+    buf.push(dataRow(vals, ST, caseCodes[r.code] ? {6: XS.MARK} : null));
+  }
+  flush();
+
+  var last = xlColName(NCOL-1);
+  var rh = {0:26, 2:34};
+  if (fixedRow) for (i=3;i<aoa.length;i++) rh[i] = 20;   /* 鎖定列高，長文字只顯示第一行 */
+  return {
+    name: name, aoa: aoa,
+    cols: [11, 6, 10, 20, 13, 18, 28, 10, 13, 9, 30, 12, 38, 18, 11, 13, 11, 13, 11, 13],
+    freeze: 3, rowHeights: rh, rowHeight: 20,
+    merges: ['B1:' + last + '1', 'B2:' + last + '2'],
+    landscape: true, fitToPage: true,
+    printArea: '$B$1:$' + last + '$' + aoa.length,   /* 不含 A 欄分組代碼 */
+    printTitles: '$1:$3',
+    __rows: shown, __scope: sel.length
+  };
+}
+
+function atcRowsByLen(model, items, len){
+  var pres = {}, list = [], i, j;
+  for (i=0;i<items.length;i++){
+    var a7 = atcOf(items[i].drug);
+    if (!a7) continue;
+    var pre = a7.substring(0, len);
+    if (!pres[pre]){ pres[pre] = 1; list.push(pre); }
+  }
+  if (!list.length) return [];
+  return model.rows.filter(function(r){
+    var a = atcOf(r.d);
+    if (!a) return false;                                  // 無 ATC7 碼者不納入
+    for (var k=0;k<list.length;k++){
+      if (len >= 7 ? (a === list[k]) : (a.substring(0, len) === list[k])) return true;
+    }
+    return false;
+  });
+}
+
+/* 附件固定產出的 ATC 層級 */
+var ATT_ATC_LEVELS = [
+  {len:1, tag:'ATC前1碼', label:'相同ATC 前1碼', fixedRow:true},   /* 列數以千計，鎖列高 */
+  {len:3, tag:'ATC前3碼', label:'相同ATC 前3碼', fixedRow:true},
+  {len:4, tag:'ATC前4碼', label:'相同ATC 前4碼'},
+  {len:5, tag:'ATC前5碼', label:'相同ATC 前5碼'},
+  {len:7, tag:'ATC7碼',   label:'相同ATC 7碼'}
+];
+
+/* levels：要產出的 ATC 碼數陣列，例 [4,5,7]；未指定時全出。「同分組」一律產出。 */
+function buildAttachmentWorkbook(model, rep, priceYear, levels){
+  var sheets = [], i, n = 1;
+  /* 同分組分頁：本案項目所屬分組的「整組」項目。空白分組代碼不得作為擴張依據。 */
+  var gset = {};
+  for (i=0;i<rep.grpUnion.length;i++) if (rep.grpUnion[i]) gset[rep.grpUnion[i]] = 1;
+  var hasBlank = rep.blankGrp > 0;              /* 有本案藥品的分組代碼留白 */
+  var grpRows = model.rows.filter(function(r){
+    return (r.grp && gset[r.grp]) || (hasBlank && !r.grp && rep.caseCodes[r.code]);
+  });
+  sheets.push(attachSheet('1.同分組', '查健保收載同分組藥品清單',
+    grpRows, model, priceYear, rep.caseCodes));
+  for (i=0;i<ATT_ATC_LEVELS.length;i++){
+    var lv = ATT_ATC_LEVELS[i];
+    if (levels && levels.indexOf(lv.len) < 0) continue;
+    sheets.push(attachSheet((++n) + '.' + lv.tag, '查健保收載' + lv.label + '藥品清單'
+      + (lv.fixedRow ? '（列高固定，適應症等長欄位僅顯示第一行）' : ''),
+      atcRowsByLen(model, rep.items, lv.len), model, priceYear, rep.caseCodes, lv.fixedRow));
+  }
+  return {book: buildXlsxBook(sheets),
+          counts: sheets.map(function(s){ return s.name + ' ' + s.__rows + ' 項'; })};
+}
+</script>
+<script type="text/plain" data-mod="assets/js/template.js">
+'use strict';
+/* 案件需求檔範本（僅 Path B 載入） */
+
+/* ---- 範本下載 ---- */
+var TPL = [{
+  CODE:'BC12345678', ATC_MODE:'BOTH', 報告人:'王小明',
+  來文日期文號:'115年3月14日健保審字第1150001234號',
+  藥品治療用途:'', 廠商建議價:48.4, 廠商成本:32.5, 十國中位價:41,
+  領有許可證:'Y', 十國加計比例:'0,10', 成本加計比例:'15,20,25,30'
+},{
+  CODE:'BC12345678', ATC_MODE:'', 報告人:'',
+  來文日期文號:'115年3月20日健保審字第1150005678號',
+  藥品治療用途:'', 廠商建議價:'', 廠商成本:'', 十國中位價:'',
+  領有許可證:'', 十國加計比例:'', 成本加計比例:''
+},{
+  CODE:'BC12345679', ATC_MODE:'FULL', 報告人:'',
+  來文日期文號:'115年3月14日健保審字第1150001234號',
+  藥品治療用途:'', 廠商建議價:2911, 廠商成本:2078, 十國中位價:'',
+  領有許可證:'N', 十國加計比例:'0', 成本加計比例:'20,25,30,35,40'
+}];
+
+var TPL_KEYS  = Object.keys(TPL[0]);
+
+var TPL_ROWS  = 300;                                     /* 下拉套用列數 */
+function tplColRef(key){
+  var k = TPL_KEYS.indexOf(key);
+  return k < 0 ? null : (xlColName(k) + '2:' + xlColName(k) + TPL_ROWS);
+}
+
+var TPL_VALID = [
+  {ref: tplColRef('ATC_MODE'), list:['FULL','PREFIX5','BOTH'],
+   title:'ATC 比對方式', prompt:'預設 BOTH（留空亦視為 BOTH）＝兩種都做，表二產生兩張表；FULL＝ATC7 全等；PREFIX5＝前5碼相同'},
+  {ref: tplColRef('領有許可證'), list:['Y','N'],
+   title:'領有藥物許可證', prompt:'Y 者成本法得加計營業稅 5% 與藥害救濟徵收金 0.05%'}
+].filter(function(v){ return v.ref; });
+
+/* 填表說明分頁 */
+var TPL_HELP = [
+  ['欄位','層級','填寫說明'],
+  ['報告人','案件','取全檔第一個非空值，整案共用一個報告人。'],
+  ['CODE','藥品','必填，對應主檔 CODE。留空的列會被略過（連同該列的來文日期文號一併不採用）。同一個 CODE 可貼成多列，用來承載多筆來文；這些列會合併成一項藥品，各欄取第一個非空值，因此第 2 列起除 CODE 與來文日期文號外都可留白。範本第 1、2 列即為此示範。'],
+  ['ATC_MODE','藥品','由下拉選取。預設為 BOTH（留空亦視為 BOTH）＝兩者都做，表二會分別產生「同ATC7碼」與「同ATC前5碼」兩張表；FULL＝ATC7 全等；PREFIX5＝前5碼相同。'],
+  ['來文日期文號','藥品','每列填一筆。列數可以多於藥品數：一項藥品有 5 筆來文，就把同一個 CODE 貼成 5 列、各填一筆文號，第 2 列起其他欄位留白即可。唯一限制是每列一定要有 CODE，沒有 CODE 的列不會被讀入。（藥商＋文號）相同者自動去重；說明一串接時只在該藥商第一筆前冠藥商名稱，各筆以「、」分隔，末筆以「及」連接。'],
+  ['藥品治療用途','藥品','留空則取主檔「適應症」。'],
+  ['廠商建議價','藥品','數字，供表五呈現。'],
+  ['廠商成本','藥品','數字，成本價法的輸入值。'],
+  ['十國中位價','藥品','留空或填 0 → 十國藥價法整欄印「無」，只呈現成本法。'],
+  ['領有許可證','藥品','由下拉選取 Y／N，非 Y/N 一律視為 Y。'],
+  ['十國加計比例','藥品','逗號分隔的百分比，例：0,10。留空視為 0。'],
+  ['成本加計比例','藥品','逗號分隔的百分比，例：15,20,25,30。留空視為 0。'],
+  [''],
+  ['不需填寫','','供應狀況、其他廠商回覆、專家意見由承辦人於 Word 上自行填寫；廠商占率由系統計算。']
+];
+
+function tplHelpSheet(){
+  var aoa = TPL_HELP.map(function(r, ri){
+    return r.map(function(c){ return xcell(c, ri === 0 ? XS.HEAD : XS.BODY); });
+  });
+  return {name:'填表說明', aoa:aoa, cols:[16,7,92], freeze:1, rowHeight:20};
+}
+</script>
+
+<!-- assets/js/app.js -->
+<script>
+'use strict';
+/* 主控：DUAL_TRACK 狀態管理、路徑 A / B 分流、模組權限檢查 */
+
+var $ = function(id){ return document.getElementById(id); };
+
+/* ============================================================
+   全域狀態
+   ============================================================ */
+var DUAL_TRACK = {
+  path: null,                    // 'PATH_A' | 'PATH_B'
+  priceYearMonth: null,          // '11508'
+
+  /* 共用層（Path A/B 都用） */
+  masterData: {
+    parsed: null,                // xlsx 原始解析結果
+    model: null,                 // buildGroupModel 結果，含 [B6]/[B7]/[B8]
+    exclusions: { tpn: [], offnet: [] },
+    priceCols: []                // 主檔偵測到的 PRICE 年月清單
+  },
+
+  /* 路徑 A */
+  pathA: {
+    sheets: { sheet1: null, sheet2: null, sheet3: null }
+  },
+
+  /* 路徑 B */
+  pathB: {
+    caseData: null,              // 原始案件需求檔列
+    targets: null,               // buildCaseReport 結果（含試算）
+    outputs: { word: null, xlsxMain: null, xlsxAttach: null }
+  }
+};
+
+/* 供舊模組沿用的別名（buildCaseReport 等以 model 為參數，不直接讀這裡） */
+var MODEL = null;
+
+/* ============================================================
+   基礎輸出
+   ============================================================ */
+function log(msg, kind){
+  var box = $('logBox');
+  var span = document.createElement('span');
+  if (kind) span.className = 'l-'+kind;
+  span.textContent = msg + '\n';
+  box.appendChild(span);
+  box.scrollTop = box.scrollHeight;
+}
+function setState(el, msg, kind){
+  el.textContent = msg;
+  el.className = 'file-state' + (kind ? ' '+kind : '');
+}
+
+/* 下載：本機開檔用 <a download>；線上沙箱版走 downloads 能力 */
+var DL = null;
+if (window.claude && typeof window.claude.use === 'function'){
+  window.claude.use('downloads').then(function(d){ DL = d; markSaveMode(); })
+                                .catch(function(){ markSaveMode(); });
+}
+function anchorSave(blob, name){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+function save(blob, name, alt){
+  if (blob && typeof blob.then === 'function'){
+    return blob.then(function(b){ save(b, name, alt); })
+               .catch(function(e){ log('產生失敗：' + name + ' — ' + e.message, 'bad'); });
+  }
+  if (!DL) return anchorSave(blob, name);
+  blob.arrayBuffer().then(function(ab){ return DL.save({filename:name, data:ab}); })
+    .catch(function(e){
+      var c = e && e.code;
+      if ((c === 'rejected_extension' || c === 'extension_not_enabled') && alt){
+        log('線上版不允許 .' + name.split('.').pop() + '，改存 ' + alt.name, 'warn');
+        save(alt.blob, alt.name);
+      } else if (c === 'declined'){
+        log('已取消儲存：' + name, 'warn');
+      } else {
+        log('儲存失敗（' + (c || 'unknown') + '）：' + name + '　→ 請改用本機檔案', 'bad');
+      }
+    });
+}
+function toCsv(rows){
+  var head = Object.keys(rows[0] || {});
+  function cell(v){
+    v = (v === undefined || v === null) ? '' : String(v);
+    return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+  }
+  var out = [head.join(',')];
+  for (var i=0;i<rows.length;i++) out.push(head.map(function(h){ return cell(rows[i][h]); }).join(','));
+  return out.join('\r\n');
+}
+function csvBlob(rows){ return new Blob(['\uFEFF' + toCsv(rows)], {type:'text/csv;charset=utf-8'}); }
+
+(function(){
+  var b = $('badgeEngine');
+  if (typeof DecompressionStream !== 'undefined'){
+    b.className = 'badge on';
+    b.innerHTML = '<span class="dot"></span>xlsx 解析引擎就緒';
+  } else {
+    b.className = 'badge off';
+    b.innerHTML = '<span class="dot"></span>瀏覽器太舊，請改用 CSV';
+  }
+})();
+function markSaveMode(){
+  var id = 'badgeSave', old = $(id);
+  if (old) old.remove();
+  var n = document.createElement('span');
+  n.id = id;
+  if (DL){ n.className = 'badge on'; n.innerHTML = '<span class="dot"></span>可直接儲存檔案'; }
+  else { n.className = 'badge off'; n.innerHTML = '<span class="dot"></span>沙箱擋下載 — 請用本機檔案'; }
+  $('badgeEngine').parentNode.appendChild(n);
+}
+if (window.claude && typeof window.claude.use === 'function') markSaveMode();
+
+/* ============================================================
+   路徑 B 模組：延遲載入
+   路徑 A 全程不會走到這裡，price-calc / case-report / docx-writer /
+   docx-report / attachment-workbook / template 因此不會出現在頁面上。
+   ============================================================ */
+var PATH_B_MODULES = [
+  'assets/js/price-calc.js',
+  'assets/js/case-report.js',
+  'assets/js/docx-writer.js',
+  'assets/js/exporters/docx-report.js',
+  'assets/js/exporters/attachment-workbook.js',
+  'assets/js/template.js'
+];
+var _pathBPromise = null;
+function pathBLoaded(){ return typeof buildCaseReport === 'function'; }
+
+/* 分檔版：以 <script src> 載入。
+   單檔版（build/bundle.mjs 產生）：原始碼已內嵌為 <script type="text/plain" data-mod="…">，
+   改成把該區塊的文字丟進新的 <script> 執行。兩種形式的**執行時機完全相同** ——
+   路徑 A 全程不會執行到這些模組，pathBLoaded() 在選路徑 B 之前一律為 false。 */
+function injectModule(src){
+  return new Promise(function(res, rej){
+    var emb = document.querySelector('script[type="text/plain"][data-mod="' + src + '"]');
+    var s = document.createElement('script');
+    if (emb){
+      s.textContent = emb.textContent;
+      document.body.appendChild(s);        // 同步執行
+      res(); return;
+    }
+    s.src = src; s.async = false;
+    s.onload = function(){ res(); };
+    s.onerror = function(){ rej(new Error('載入失敗：' + src)); };
+    document.body.appendChild(s);
+  });
+}
+function loadPathBModules(){
+  if (_pathBPromise) return _pathBPromise;
+  _pathBPromise = PATH_B_MODULES.reduce(function(chain, src){
+    return chain.then(function(){ return injectModule(src); });
+  }, Promise.resolve()).then(function(){
+    log('路徑 B 模組已載入（' + PATH_B_MODULES.length + ' 個）。', 'ok');
+    bindPathBHandlers();
+    refresh();
+  }).catch(function(e){
+    _pathBPromise = null;
+    log(e.message + '　→ 請確認 assets/js 目錄與 index.html 在同一層。', 'bad');
+    throw e;
+  });
+  return _pathBPromise;
+}
+
+/* ============================================================
+   狀態清空規則（INTENT「清空規則」表）
+   ============================================================ */
+function clearAll(){
+  DUAL_TRACK.path = null;
+  DUAL_TRACK.priceYearMonth = null;
+  DUAL_TRACK.masterData = {parsed:null, model:null, exclusions:{tpn:[],offnet:[]}, priceCols:[]};
+  clearPathA(); clearPathBAll();
+  MODEL = null; _modelKey = null;
+  if ($('rdA')) $('rdA').checked = false;
+  if ($('rdB')) $('rdB').checked = false;
+  $('prevBox').innerHTML = '';
+}
+function clearModelOnly(){                 /* 改選 price 年月：檔案留著，模型與兩路徑產出全清 */
+  DUAL_TRACK.masterData.model = null;
+  MODEL = null; _modelKey = null;
+  clearPathA(); clearPathBOutputs();
+  DUAL_TRACK.pathB.targets = null;
+  $('prevBox').innerHTML = '';
+}
+function clearPathA(){ DUAL_TRACK.pathA.sheets = {sheet1:null, sheet2:null, sheet3:null}; }
+function clearPathBOutputs(){ DUAL_TRACK.pathB.outputs = {word:null, xlsxMain:null, xlsxAttach:null}; }
+function clearPathBAll(){ DUAL_TRACK.pathB.caseData = null; DUAL_TRACK.pathB.targets = null; clearPathBOutputs(); }
+
+/* ============================================================
+   主檔驗證與 PRICE 年月掃描
+   ============================================================ */
+var MASTER_REQUIRED = ['CODE','分組代碼','ATC7碼'];
+function scanPriceCols(rows){
+  var keys = {}, i, k;
+  for (i=0;i<Math.min(rows.length,300);i++) for (k in rows[i]) keys[k]=1;
+  var out = [];
+  for (k in keys){
+    var m = /^PRICE(\d{5})$/.exec(k);
+    if (m) out.push(m[1]);
+  }
+  out.sort();
+  return out;
+}
+/* 回傳 {ok:Boolean, missing:[], priceCols:[]} */
+function validateMaster(rows){
+  var keys = {}, i, k;
+  for (i=0;i<Math.min(rows.length,300);i++) for (k in rows[i]) keys[k]=1;
+  var missing = MASTER_REQUIRED.filter(function(c){ return !keys[c]; });
+  var priceCols = scanPriceCols(rows);
+  if (!priceCols.length) missing.push('PRICE{民國年月}');
+  return {ok: missing.length === 0, missing: missing, priceCols: priceCols};
+}
+
+function currentPy(){ return normPriceYear($('priceYear').value); }
+function priceColExists(py){
+  var m = DUAL_TRACK.masterData.parsed;
+  if (!m || py.length !== 5) return false;
+  return DUAL_TRACK.masterData.priceCols.indexOf(py) >= 0
+      || m.some(function(r){ return ('PRICE'+py) in r; });
+}
+/* price 年月無對應欄時，給最接近的兩個候選 */
+function nearestPriceCols(py){
+  var list = DUAL_TRACK.masterData.priceCols;
+  if (!list.length) return [];
+  var n = parseInt(py,10);
+  return list.slice().sort(function(a,b){
+    return Math.abs(parseInt(a,10)-n) - Math.abs(parseInt(b,10)-n);
+  }).slice(0,3);
+}
+
+/* ============================================================
+   分組模型（[A3] 排除 → buildGroupModel）
+   ============================================================ */
+var _modelKey = null, _excl = null;
+function caseCodeSet(){
+  var m = {}, cs = DUAL_TRACK.pathB.caseData;
+  if (cs) for (var i=0;i<cs.length;i++){ var c = txt(cs[i]['CODE']); if (c) m[c] = 1; }
+  return m;
+}
+function getModel(){
+  var py = currentPy(), master = DUAL_TRACK.masterData.parsed;
+  if (!master || py.length !== 5 || !priceColExists(py)) return null;
+  var exTpn = !$('exTpn') || $('exTpn').checked;
+  var exOff = !$('exOff') || $('exOff').checked;
+  /* 路徑 A 沒有案件檔，keepCodes 為空 —— 這正是兩條路徑母體可能不同的唯一來源 */
+  var keep = (DUAL_TRACK.path === 'PATH_B') ? caseCodeSet() : {};
+  var key = py + '|' + master.length + '|' + exTpn + exOff + '|' + DUAL_TRACK.path + '|' + Object.keys(keep).join(',');
+  if (MODEL && _modelKey === key) return MODEL;
+  try {
+    var ex = excludeMaster(master, exTpn, exOff, keep);
+    _excl = ex;
+    DUAL_TRACK.masterData.exclusions = {tpn: ex.tpn, offnet: ex.offnet};
+    var baseYear = parseInt(py.substring(0,3),10);
+    MODEL = buildGroupModel(ex.rows, py, resolveYearWindow(ex.rows, baseYear));
+    DUAL_TRACK.masterData.model = MODEL;
+    DUAL_TRACK.priceYearMonth = py;
+    _modelKey = key;
+    return MODEL;
+  } catch (err){
+    MODEL = null; _modelKey = null;
+    log('分組模型建立失敗：' + err.message + '　→ 請檢視主檔原始資料（診斷資訊如上）。', 'bad');
+    return null;
+  }
+}
+
+/* ============================================================
+   檔案載入
+   ============================================================ */
+function loadFile(file){
+  if (/\.csv$/i.test(file.name)) return file.text().then(readCsv);
+  return file.arrayBuffer().then(readXlsx);
+}
+
+$('fMaster').addEventListener('change', function(e){
+  var file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  clearAll(); refresh();
+  setState($('sMaster'), '讀取中…');
+  loadFile(file).then(function(rows){
+    if (!rows.length) throw new Error('檔案沒有資料列');
+    var v = validateMaster(rows);
+    if (!v.ok){
+      setState($('sMaster'), '✗ 缺少必要欄位', 'bad');
+      log('藥品主檔缺少必要欄位：' + v.missing.join('、') + '　→ 請重新上傳。', 'bad');
+      refresh();
+      return;
+    }
+    DUAL_TRACK.masterData.parsed = rows;
+    DUAL_TRACK.masterData.priceCols = v.priceCols;
+    setState($('sMaster'), '✓ ' + rows.length.toLocaleString() + ' 筆 · ' + Object.keys(rows[0]).length + ' 欄', 'ok');
+    log('藥品主檔載入成功：' + file.name + '（' + rows.length + ' 筆）', 'ok');
+    log('偵測到 ' + v.priceCols.length + ' 個 PRICE 年月欄位：'
+        + v.priceCols.join('、') + '　→ 請於步驟 02 選擇。', 'ok');
+    fillPySelect(v.priceCols);
+    warnMasterQuality(rows);
+    refresh();
+  }).catch(function(err){
+    setState($('sMaster'), '✗ 讀取失敗', 'bad');
+    log('藥品主檔讀取失敗：' + err.message, 'bad');
+    refresh();
+  });
+});
+
+function fillPySelect(cols){
+  var sel = $('pySelect');
+  sel.innerHTML = '';
+  var o0 = document.createElement('option');
+  o0.value = ''; o0.textContent = cols.length ? '— 請選擇 —' : '— 主檔無 PRICE 欄位 —';
+  sel.appendChild(o0);
+  cols.forEach(function(c){
+    var o = document.createElement('option');
+    o.value = c; o.textContent = c + '（' + pyLabel(c) + '）';
+    sel.appendChild(o);
+  });
+  /* 只有一個年月時直接選起來 */
+  if (cols.length === 1){ sel.value = cols[0]; $('priceYear').value = cols[0]; }
+}
+
+function warnMasterQuality(rows){
+  var nBlankG = 0, nBlankA = 0;
+  for (var i=0;i<rows.length;i++){
+    if (!txt(rows[i]['分組代碼'])) nBlankG++;
+    if (!txt(rows[i]['ATC7碼'])) nBlankA++;
+  }
+  if (nBlankG) log('主檔有 ' + nBlankG.toLocaleString() + ' 筆「分組代碼」留白，'
+    + '不會被當成同一分組擴張，[B6]／[B8] 對這些列無效。', 'warn');
+  if (nBlankA) log('主檔有 ' + nBlankA.toLocaleString() + ' 筆「ATC7碼」留白，不會出現在任何 ATC 分頁。', 'warn');
+}
+
+/* ---- 案件需求檔（路徑 B） ---- */
+function bindCaseInput(){
+  var el = $('fCase');
+  if (!el || el.__bound) return;
+  el.__bound = 1;
+  el.addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    DUAL_TRACK.pathB.caseData = null;
+    clearPathBOutputs(); DUAL_TRACK.pathB.targets = null;
+    MODEL = null; _modelKey = null;
+    refresh();
+    setState($('sCase'), '讀取中…');
+    loadFile(file).then(function(rows){
+      if (!rows.length) throw new Error('檔案沒有資料列');
+      DUAL_TRACK.pathB.caseData = rows;
+      setState($('sCase'), '✓ ' + rows.length.toLocaleString() + ' 筆 · ' + Object.keys(rows[0]).length + ' 欄', 'ok');
+      log('案件需求檔載入成功：' + file.name + '（' + rows.length + ' 筆）', 'ok');
+      warnCaseMatch(rows);
+      MODEL = null; _modelKey = null;
+      refresh();
+    }).catch(function(err){
+      DUAL_TRACK.pathB.caseData = null;
+      setState($('sCase'), '✗ 讀取失敗', 'bad');
+      log('案件需求檔讀取失敗：' + err.message, 'bad');
+      refresh();
+    });
+  });
+}
+/* fCase 與 fMaster 無匹配 CODE → 提示（該列稍後由 buildCaseReport 移除） */
+function warnCaseMatch(rows){
+  var master = DUAL_TRACK.masterData.parsed;
+  if (!master) return;
+  var have = {};
+  for (var i=0;i<master.length;i++) have[txt(master[i]['CODE'])] = 1;
+  var miss = [], seen = {};
+  for (i=0;i<rows.length;i++){
+    var c = txt(rows[i]['CODE']);
+    if (!c || seen[c]) continue;
+    seen[c] = 1;
+    if (!have[c]) miss.push(c);
+  }
+  if (miss.length) log('這些 CODE 不在主檔中，產出時會被移除：' + miss.join('、'), 'warn');
+}
+
+/* ============================================================
+   步驟 02 / 03 互動
+   ============================================================ */
+$('pySelect').addEventListener('change', function(e){
+  $('priceYear').value = e.target.value;
+  clearModelOnly();
+  refresh();
+});
+$('priceYear').addEventListener('input', function(e){
+  e.target.value = normPriceYear(e.target.value).substring(0,5);
+  var sel = $('pySelect');
+  sel.value = (DUAL_TRACK.masterData.priceCols.indexOf(e.target.value) >= 0) ? e.target.value : '';
+  clearModelOnly();
+  refresh();
+});
+['exTpn','exOff'].forEach(function(id){
+  if ($(id)) $(id).addEventListener('change', function(){ clearModelOnly(); refresh(); });
+});
+
+function setTrack(next){
+  var prev = DUAL_TRACK.path;
+  if (prev === next) return;
+  if (prev === 'PATH_B' && next === 'PATH_A' &&
+      (DUAL_TRACK.pathB.caseData || DUAL_TRACK.pathB.targets)){
+    if (!window.confirm('切換到路徑 A 會清除已載入的案件需求檔與提案產出，確定嗎？')){
+      $('rdB').checked = true;
+      return;
+    }
+  }
+  DUAL_TRACK.path = next;
+  if (next === 'PATH_A'){
+    clearPathBAll();
+    if ($('sCase')) setState($('sCase'), '尚未載入');
+    $('prevBox').innerHTML = '';
+  } else {
+    clearPathA();
+  }
+  MODEL = null; _modelKey = null;
+  log('已選擇' + (next === 'PATH_A' ? '路徑 A｜背景查詢' : '路徑 B｜正式提案'), 'ok');
+  if (next === 'PATH_B' && !pathBLoaded()) loadPathBModules().catch(function(){});
+  refresh();
+}
+$('rdA').addEventListener('change', function(){ if (this.checked) setTrack('PATH_A'); });
+$('rdB').addEventListener('change', function(){ if (this.checked) setTrack('PATH_B'); });
+
+/* ============================================================
+   畫面更新
+   ============================================================ */
+function refresh(){
+  var master = DUAL_TRACK.masterData.parsed;
+  var py = currentPy();
+  var pyOk = !!(master && py.length === 5 && priceColExists(py));
+
+  $('badgeTrack').className = 'badge' + (DUAL_TRACK.path ? ' on' : '');
+  $('badgeTrack').innerHTML = '<span class="dot"></span>'
+    + (DUAL_TRACK.path === 'PATH_A' ? '路徑 A｜背景查詢'
+     : DUAL_TRACK.path === 'PATH_B' ? '路徑 B｜正式提案' : '尚未選擇路徑');
+
+  /* 步驟 02 診斷 */
+  var d = $('diagBox');
+  if (!master || py.length !== 5){ d.hidden = true; }
+  else {
+    d.hidden = false;
+    var priceCol = 'PRICE' + py;
+    $('dPriceCol').textContent = priceCol + (pyOk ? ' ✓' : ' ✗ 主檔無此欄');
+    var baseYear = parseInt(py.substring(0,3),10);
+    var yr3 = resolveYearWindow(master, baseYear);
+    $('dDataYear').textContent = '民國 ' + (yr3-2) + '–' + yr3 + ' 年';
+    $('dMasterN').textContent  = master.length.toLocaleString();
+    var mm = parseInt(py.substring(3,5),10);
+    $('dCutoff').textContent = '民國 ' + ((mm >= 4) ? baseYear : baseYear-1) + ' 年（' + (mm>=4?'≥4月取當年':'<4月取前年') + '）';
+    if (pyOk) getModel();
+    $('dExcl').textContent = _excl
+      ? ((_excl.tpn + _excl.offnet)
+          ? ('TPN ' + _excl.tpn.toLocaleString() + ' 筆／不上網 ' + _excl.offnet.toLocaleString()
+             + ' 筆　→ 實際採用 ' + (master.length - _excl.tpn - _excl.offnet).toLocaleString() + ' 筆')
+          : '無')
+      : '—';
+    var cs = DUAL_TRACK.pathB.caseData;
+    if (!cs) $('dCaseN').textContent = '—';
+    else {
+      var seen = {}, n = 0;
+      for (var ci=0; ci<cs.length; ci++){
+        var cc = txt(cs[ci]['CODE']);
+        if (cc && !seen[cc]){ seen[cc] = 1; n++; }
+      }
+      $('dCaseN').textContent = n + ' 項藥品' + (cs.length > n ? '（' + cs.length + ' 列，同 CODE 已合併）' : '');
+    }
+  }
+
+  /* 步驟 03：price 年月驗證通過才解鎖路徑選擇 */
+  $('stepTrack').hidden = !pyOk;
+  $('rdA').disabled = !pyOk;
+  $('rdB').disabled = !pyOk;
+  $('trackA').classList.toggle('sel', DUAL_TRACK.path === 'PATH_A');
+  $('trackB').classList.toggle('sel', DUAL_TRACK.path === 'PATH_B');
+  $('casePanel').hidden = (DUAL_TRACK.path !== 'PATH_B');
+  if (DUAL_TRACK.path === 'PATH_B') bindCaseInput();
+
+  /* 步驟 04 / 05 */
+  var model = pyOk ? getModel() : null;
+  $('stepFilter').hidden = !DUAL_TRACK.path;
+  $('filterHint').textContent = (DUAL_TRACK.path === 'PATH_A')
+    ? '決定查詢表的查詢範圍，留空＝整份主檔'
+    : '僅影響四分頁 Excel，不影響提案 Word';
+
+  $('stepOutA').hidden = (DUAL_TRACK.path !== 'PATH_A');
+  $('stepOutB').hidden = (DUAL_TRACK.path !== 'PATH_B');
+
+  if (DUAL_TRACK.path === 'PATH_A'){
+    $('btnQuery').disabled = !model;
+  }
+  if (DUAL_TRACK.path === 'PATH_B'){
+    var ready = !!(model && DUAL_TRACK.pathB.caseData && pathBLoaded());
+    ['btnPreview','btnDocx','btnAttach'].forEach(function(id){ if ($(id)) $(id).disabled = !ready; });
+    if ($('btnXlsx')) $('btnXlsx').disabled = !(model && pathBLoaded());
+    if ($('btnTpl')) $('btnTpl').disabled = !pathBLoaded();
+  }
+}
+
+/* ============================================================
+   路徑 A：產出查詢表
+   ============================================================ */
+function currentFilters(){
+  return {atc7:parseFilter($('qAtc7').value), grpCd:parseFilter($('qGrpCd').value),
+          grpNm:parseFilter($('qGrpNm').value), code:parseFilter($('qCode').value),
+          brand:parseFilter($('qBrand').value)};
+}
+$('btnQuery').addEventListener('click', function(){
+  var model = getModel();
+  if (!model){ log('請先載入主檔並選定 price 年月。', 'bad'); return; }
+  var py = currentPy();
+  try {
+    var wb = buildQueryWorkbook(model, currentFilters(), py);
+    DUAL_TRACK.pathA.sheets = {sheet1:wb.counts.s1, sheet2:wb.counts.s2, sheet3:wb.counts.s3};
+    if (!wb.counts.sel){ log('查無符合篩選條件的項目，查詢表仍會產出（僅含表頭）。', 'warn'); }
+    log('查詢表：符合條件 ' + wb.counts.sel.toLocaleString() + ' 筆 → 摘要 ' + wb.counts.s1
+        + ' 列、同分組 ' + wb.counts.s2 + ' 列（' + wb.counts.groups + ' 分組）、同ATC '
+        + wb.counts.s3 + ' 列（' + wb.counts.atc + ' 個 ATC7 碼）', 'ok');
+    save(wb.book, '藥品背景查詢_' + py + '.xlsx');
+  } catch (err){ log('查詢表產出失敗：' + err.message, 'bad'); }
+});
+
+/* ============================================================
+   路徑 B：預覽與產出（模組載入後才綁定）
+   ============================================================ */
+function buildReport(){
+  var py = currentPy();
+  var model = getModel();
+  var cs = DUAL_TRACK.pathB.caseData;
+  if (!model || !cs) return null;
+  try {
+    var rep = buildCaseReport(cs, model, py);
+    if (rep.missing.length) log('主檔查無這些 CODE，已略過：' + rep.missing.join('、'), 'warn');
+    DUAL_TRACK.pathB.targets = rep;
+    return rep;
+  } catch (err){ log('產生失敗：' + err.message, 'bad'); return null; }
+}
+function selectedAtcLevels(){
+  var out = [];
+  [1,3,4,5,7].forEach(function(n){ if ($('atcL'+n) && $('atcL'+n).checked) out.push(n); });
+  return out;
+}
+function renderTable(head, rows){
+  var h = '<div class="scroll"><table><thead><tr>';
+  for (var i=0;i<head.length;i++) h += '<th>'+esc(head[i])+'</th>';
+  h += '</tr></thead><tbody>';
+  for (var r=0;r<rows.length;r++){
+    h += '<tr'+(rows[r].__self?' class="self"':'')+'>';
+    for (i=0;i<head.length;i++){
+      var v = rows[r][i] === undefined ? '' : rows[r][i];
+      if (isSeg(v)) v = segText(v);
+      var isNum = typeof v === 'string' && /^[\d,.\s%－-]*$/.test(v) && v !== '';
+      h += '<td'+(isNum?' class="num"':'')+'>'+esc(v)+'</td>';
+    }
+    h += '</tr>';
+  }
+  return h + '</tbody></table></div>';
+}
+
+var _pathBBound = false;
+function bindPathBHandlers(){
+  if (_pathBBound) return;
+  _pathBBound = true;
+
+  $('btnTpl').addEventListener('click', function(){
+    try {
+      save(buildXlsx(TPL, '案件需求', {validations: TPL_VALID, extraSheets: [tplHelpSheet()]}),
+           '案件需求檔_範本.xlsx',
+           {blob: csvBlob(TPL), name: '案件需求檔_範本.csv'});
+      log('範本已下載：案件需求檔_範本.xlsx（' + TPL_KEYS.length + ' 個欄位）', 'ok');
+    } catch (err){ log('範本產生失敗：' + err.message, 'bad'); }
+  });
+
+  $('btnPreview').addEventListener('click', function(){
+    var rep = buildReport(), box = $('prevBox');
+    box.innerHTML = '';
+    if (!rep) return;
+    var el = document.createElement('div');
+    el.className = 'case-card';
+    var h = '<div class="case-hd"><b>本案 ' + rep.items.length + ' 項藥品</b>'
+          + '<code>報告人 ' + esc(rep.reporter) + '</code>'
+          + '<code>申報 ' + rep.dataYear + ' 年</code></div><div class="case-bd">';
+    var CN = '一二三四五六七八九十', ci = rep.items.length;
+    h += '<div><div class="tbl-cap">（' + CN[ci++] + '）查健保收載同分組藥品共計 ' + rep.table1.length + ' 項(P-)（已排除現行支付價 0 元者）</div>'
+       + renderTable(rep.table1Head, rep.table1) + '</div>';
+    for (var bi=0;bi<rep.table2Blocks.length;bi++){
+      var bk = rep.table2Blocks[bi];
+      h += '<div><div class="tbl-cap">（' + CN[ci++] + '）查健保收載' + (bk.mode === 'PREFIX5' ? '相同ATC 5碼' : '相同ATC 7碼')
+         + '藥品共計 ' + bk.nGroups + ' 分組、' + bk.nItems + ' 項目(P-)</div>'
+         + renderTable(bk.head, bk.rows)
+         + bk.notes.map(function(n){ return '<div class="tbl-note">' + esc(n) + '</div>'; }).join('')
+         + '</div>';
+    }
+    h += '<div><div class="tbl-cap">五、廠商建議(P-)</div>' + renderTable(rep.table5Head, rep.table5) + '</div>';
+    for (var i=0;i<rep.items.length;i++){
+      var it = rep.items[i], c = it.calc;
+      var head = ['項目'].concat(c.tenHead.map(function(x){ return '十國 '+x; }))
+                          .concat(c.costHead.map(function(x){ return '成本 '+x; }));
+      var rows = [
+        ['調高後支付價'].concat(c.priceRow),
+        ['整體藥費'].concat(c.totalRow),
+        ['財務衝擊'].concat(c.impactRow)
+      ];
+      h += '<div><div class="tbl-cap">六、（' + '一二三四五六七八九十'[i] + '）'
+         + esc(txt(it.drug['藥品名稱'])) + '（' + esc(it.code) + '）　健保價 '
+         + (it.row.price === null ? '－' : money(it.row.price))
+         + '　建議價 ' + (it.sug === null ? '－' : money(it.sug))
+         + '　近三年平均量 ' + (c.avgQty === null ? '－' : fmt(Math.round(c.avgQty)))
+         + '</div>' + renderTable(head, rows) + '</div>';
+    }
+    var nt = '';
+    for (i=0;i<rep.notes.length;i++){
+      var n = rep.notes[i];
+      var tag = rep.notes.length > 1 ? '（項次 ' + n.idx.join('、') + '）' : '';
+      nt += (nt ? '\n' : '') + '註1：' + tag + n.a10Law + '\n註2：' + tag + n.costLaw
+          + '\n　　2.領有藥物許可證者，得加計繳納藥害救濟徵收金比率及營業稅。';
+      for (var q=0;q<n.licOrder.length;q++){
+        var lt = n.licOrder.length > 1 ? '（項次 ' + n.lics[n.licOrder[q]].join('、') + '）' : '';
+        nt += '\n　　　' + lt + n.licOrder[q];
+      }
+    }
+    h += '<div class="notes">' + esc(nt) + '\n' + esc(rep.art40) + '</div>';
+    box.appendChild(el);
+    el.innerHTML = h + '</div>';
+    log('預覽完成：' + rep.items.length + ' 項藥品、表一 ' + rep.table1.length + ' 列。', 'ok');
+  });
+
+  $('btnXlsx').addEventListener('click', function(){
+    var model = getModel();
+    if (!model){ log('請先載入藥品主檔並選定 price 年月。', 'bad'); return; }
+    var py = currentPy();
+    if (!DUAL_TRACK.pathB.caseData){
+      log('已選正式提案，請先上傳案件需求檔（分頁 1 將只輸出說明）。', 'warn');
+    }
+    var rep0 = buildReport();
+    var targets = rep0 ? rep0.items : [];
+    try {
+      var wb = buildSasWorkbook(model, currentFilters(), targets, py, {skipPriceCalc:false});
+      DUAL_TRACK.pathB.outputs.xlsxMain = wb.counts;
+      log('篩選後 ' + wb.counts.sel.toLocaleString() + ' 筆 → 分組統計 ' + wb.counts.s2
+          + ' 列、明細 ' + wb.counts.s3 + ' 列、含0元 ' + wb.counts.s4 + ' 列', 'ok');
+      if (wb.counts.s4 > 60000) log('資料量偏大，Excel 產出可能需要數十秒。', 'warn');
+      save(wb.book, '藥價核價報表_' + py + '.xlsx');
+    } catch (err){ log('Excel 產出失敗：' + err.message, 'bad'); }
+  });
+
+  $('btnAttach').addEventListener('click', function(){
+    var model = getModel(), rep = buildReport();
+    if (!model || !rep) return;
+    var py = currentPy();
+    try {
+      var at = buildAttachmentWorkbook(model, rep, py, selectedAtcLevels());
+      DUAL_TRACK.pathB.outputs.xlsxAttach = at.counts;
+      save(at.book, '提案附件_' + py + '.xlsx');
+      log('已產出提案附件 Excel：' + at.counts.join('、'), 'ok');
+    } catch (err){ log('提案附件產出失敗：' + err.message, 'bad'); }
+  });
+
+  $('btnDocx').addEventListener('click', function(){
+    var rep = buildReport();
+    if (!rep) return;
+    try {
+      var first = txt(rep.items[0].drug['藥品名稱']).replace(/[\\/:*?"<>|]/g,'').substring(0,20);
+      var name = '提案_' + first + (rep.items.length > 1 ? '等' + rep.items.length + '項' : '') + '.docx';
+      DUAL_TRACK.pathB.outputs.word = name;
+      save(reportToDocx(rep), name);
+      log('已產出 ' + name + '（' + rep.items.length + ' 項藥品）', 'ok');
+    } catch (err){ log('產出失敗：' + err.message, 'bad'); }
+  });
+}
+
+refresh();
+</script>
+
+</body></html>

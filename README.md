@@ -5,7 +5,16 @@
 
 ## 使用方式
 
-用瀏覽器直接開 `index.html`（本機檔即可，`assets/` 需與它同層）。
+兩種形態，功能完全相同：
+
+| | 檔案 | 用途 |
+|---|---|---|
+| **單檔版** | `dist/case_template.html` | **寄給同仁用**。一個檔、瀏覽器直接開，不需要其他檔案 |
+| 分檔版 | `index.html` + `assets/` | 開發與維護用，`assets/` 需與 `index.html` 同層 |
+
+單檔版由 `node build/bundle.mjs` 產生（改完 `assets/js/**` 記得重跑）。
+路徑 B 專屬模組在單檔版裡以「未執行的文字區塊」存放，選擇路徑 B 時才執行，
+因此**單檔版同樣保有「路徑 A 不執行試算與 Word 模組」的隔離**。
 
 | | 路徑 A｜背景查詢 | 路徑 B｜正式提案 |
 |---|---|---|
@@ -20,7 +29,9 @@
 
 ```text
 html-proposal-generator/
-├── index.html                        # 雙軌 UI 入口
+├── index.html                        # 雙軌 UI 入口（分檔版）
+├── dist/case_template.html           # 單檔版，寄送用（build/bundle.mjs 產生）
+├── build/bundle.mjs                  # 單檔打包器
 ├── INTENT.md                         # 雙軌重構規格
 ├── claude.md                         # 系統規格（權威來源）
 ├── 藥品主檔資料處理原則.md            # 法規與資料處理規則 [A1]~[D20]（權威來源）
@@ -46,12 +57,17 @@ html-proposal-generator/
 
 ### 模組載入策略
 
-`index.html` 只用 `<script src>` 靜態載入路徑 A/B 共用的 6 個模組。
-標記為「路徑 B」的 6 個模組在使用者**選擇路徑 B 時才動態注入**，
-因此路徑 A 的頁面上不存在 `price-calc.js` / `case-report.js` / `docx-writer.js` /
-`docx-report.js`，無法誤觸試算邏輯。
+模組之間以全域函式互相呼叫（無 bundler、無 ES module），載入順序即相依順序。
 
-模組之間以全域函式互相呼叫（無打包步驟、無 ES module），載入順序即相依順序。
+**分檔版**：`index.html` 以 `<script src>` 靜態載入路徑 A/B 共用的 7 支；
+標記「路徑 B」的 6 支在使用者**選擇路徑 B 時才動態注入**。
+
+**單檔版**：共用模組直接內嵌為 `<script>`；路徑 B 模組內嵌為
+`<script type="text/plain" data-mod="…">`（**不執行**），選擇路徑 B 時才由
+`injectModule()` 取出執行。
+
+兩種形態下，路徑 A 的執行環境裡都不存在 `buildCaseReport` / `costRefPrice` /
+`reportToDocx`，無法誤觸試算邏輯 —— `test/ui.mjs` 與 `test/ui-bundle.mjs` 分別實測。
 
 ## 規則對照
 

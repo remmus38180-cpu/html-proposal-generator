@@ -16,7 +16,8 @@
 
 | 檔案 | 說明 |
 |---|---|
-| `index.html` | 主工具（雙軌版）。**用瀏覽器直接開本機檔**，`assets/` 需與它同層 |
+| `dist/case_template.html` | **寄給同仁的單檔版**。一個檔、瀏覽器直接開，由 `build/bundle.mjs` 產生 |
+| `index.html` | 主工具（分檔版，開發維護用）。`assets/` 需與它同層 |
 | `assets/js/**` | 拆分後的模組，見 §7.2 |
 | `legacy/case_template.html` | 重構前的單軌單檔版，凍結供比對 |
 | `INTENT.md` | 雙軌分流架構重構規格 |
@@ -644,9 +645,15 @@ S {YR3}年申報量  T {YR3}年申報金額
 | `template.js` | 案件需求檔範本 `TPL`／`tplHelpSheet` | ❌ | ✅ |
 
 **載入策略**：`index.html` 靜態載入前 7 個（路徑 A 需要的全部）；標記 ❌ 的 6 個模組
-在使用者**選擇路徑 B 時才由 `loadPathBModules()` 動態注入**（依序注入，`async=false`）。
+在使用者**選擇路徑 B 時才由 `loadPathBModules()` → `injectModule()` 載入**（依序，`async=false`）。
 因此路徑 A 的頁面上不存在 `price-calc.js`／`case-report.js`／`docx-writer.js`／`docx-report.js`，
 無法誤觸試算邏輯 —— 這是 INTENT「架構約束」的實作方式。
+
+**單檔版**（`node build/bundle.mjs` → `dist/case_template.html`）：
+共用模組直接內嵌為 `<script>`；路徑 B 模組內嵌為 `<script type="text/plain" data-mod="…">`，
+`injectModule()` 偵測到該區塊時改用 `script.textContent` 執行。
+**執行時機與分檔版完全相同** —— 選路徑 B 之前 `typeof buildCaseReport === 'undefined'`，
+`test/ui-bundle.mjs` 會實測這一點。改完 `assets/js/**` 要重跑打包器。
 
 **測試**
 ```bash

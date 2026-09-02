@@ -130,18 +130,30 @@ var PATH_B_MODULES = [
 ];
 var _pathBPromise = null;
 function pathBLoaded(){ return typeof buildCaseReport === 'function'; }
+
+/* 分檔版：以 <script src> 載入。
+   單檔版（build/bundle.mjs 產生）：原始碼已內嵌為 <script type="text/plain" data-mod="…">，
+   改成把該區塊的文字丟進新的 <script> 執行。兩種形式的**執行時機完全相同** ——
+   路徑 A 全程不會執行到這些模組，pathBLoaded() 在選路徑 B 之前一律為 false。 */
+function injectModule(src){
+  return new Promise(function(res, rej){
+    var emb = document.querySelector('script[type="text/plain"][data-mod="' + src + '"]');
+    var s = document.createElement('script');
+    if (emb){
+      s.textContent = emb.textContent;
+      document.body.appendChild(s);        // 同步執行
+      res(); return;
+    }
+    s.src = src; s.async = false;
+    s.onload = function(){ res(); };
+    s.onerror = function(){ rej(new Error('載入失敗：' + src)); };
+    document.body.appendChild(s);
+  });
+}
 function loadPathBModules(){
   if (_pathBPromise) return _pathBPromise;
   _pathBPromise = PATH_B_MODULES.reduce(function(chain, src){
-    return chain.then(function(){
-      return new Promise(function(res, rej){
-        var s = document.createElement('script');
-        s.src = src; s.async = false;
-        s.onload = function(){ res(); };
-        s.onerror = function(){ rej(new Error('載入失敗：' + src)); };
-        document.body.appendChild(s);
-      });
-    });
+    return chain.then(function(){ return injectModule(src); });
   }, Promise.resolve()).then(function(){
     log('路徑 B 模組已載入（' + PATH_B_MODULES.length + ' 個）。', 'ok');
     bindPathBHandlers();

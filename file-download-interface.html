@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>檔案下載中心</title>
+  <style>
+    :root {
+      --primary: #0f62fe;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --text: #1f1f1f;
+      --text-secondary: #525252;
+      --border: #e0e0e0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .header p {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .download-section {
+      background: var(--surface);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      transition: background-color 0.2s;
+    }
+
+    .file-item:hover {
+      background-color: #f9f9f9;
+    }
+
+    .file-item:last-child {
+      border-bottom: none;
+    }
+
+    .file-info {
+      flex: 1;
+    }
+
+    .file-name {
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .file-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      font-size: 14px;
+    }
+
+    .file-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .file-size {
+      font-size: 12px;
+      color: #8d8d8d;
+      margin-top: 4px;
+    }
+
+    .download-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      white-space: nowrap;
+      margin-left: 16px;
+    }
+
+    .download-btn:hover {
+      background-color: #0353e9;
+    }
+
+    .download-btn:active {
+      background-color: #0345d1;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid var(--primary);
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin-top: 20px;
+      font-size: 13px;
+      color: #0345d1;
+    }
+
+    @media (max-width: 600px) {
+      .file-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .download-btn {
+        margin-left: 0;
+        margin-top: 12px;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>📥 檔案下載中心</h1>
+    <p>藥品支付價提案產生器相關文件</p>
+  </div>
+
+  <div class="download-section">
+    <div class="section-title">文件清單</div>
+
+    <!-- File 1: case_template.html -->
+    <div class="file-item">
+      <div class="file-info">
+        <div class="file-name">
+          <span class="file-icon">📄</span>
+          case_template.html
+        </div>
+        <div class="file-desc">藥品支付價提案產生器主程式</div>
+        <div class="file-size">含完整核價公式、資料處理邏輯、XLSX/DOCX產生器</div>
+      </div>
+      <button class="download-btn" onclick="downloadFile('case_template.html', 'text/html')">下載</button>
+    </div>
+
+    <!-- File 2: 資料邏輯說明.html -->
+    <div class="file-item">
+      <div class="file-info">
+        <div class="file-name">
+          <span class="file-icon">📋</span>
+          資料邏輯說明.html
+        </div>
+        <div class="file-desc">資料計算規則完整文件</div>
+        <div class="file-size">包含年度設定、分組彙總、核價公式等詳細說明</div>
+      </div>
+      <button class="download-btn" onclick="downloadFile('資料邏輯說明.html', 'text/html')">下載</button>
+    </div>
+
+    <!-- File 3: 藥品主檔資料處理原則.md -->
+    <div class="file-item">
+      <div class="file-info">
+        <div class="file-name">
+          <span class="file-icon">📝</span>
+          藥品主檔資料處理原則.md
+        </div>
+        <div class="file-desc">資料處理標準與編碼規則</div>
+        <div class="file-size">主檔欄位定義、流水號編碼、劑型分組原則</div>
+      </div>
+      <button class="download-btn" onclick="downloadFile('藥品主檔資料處理原則.md', 'text/markdown')">下載</button>
+    </div>
+  </div>
+
+  <div class="info-box">
+    💡 所有檔案均以原始格式保存，無需解壓。可直接用瀏覽器開啟 HTML 檔案或用文字編輯器開啟 Markdown 檔案。
+  </div>
+</div>
+
+<script>
+// 檔案內容（base64 編碼或直接文字）
+const files = {
+  'case_template.html': {
+    size: '約 275 KB',
+    content: null // 將透過檔案系統取得
+  },
+  '資料邏輯說明.html': {
+    size: '約 108 KB',
+    content: null
+  },
+  '藥品主檔資料處理原則.md': {
+    size: '約 42 KB',
+    content: null
+  }
+};
+
+function downloadFile(filename, mimeType) {
+  // 使用 Fetch API 從相同目錄取得檔案
+  fetch(filename)
+    .then(response => {
+      if (!response.ok) throw new Error('File not found');
+      return response.blob();
+    })
+    .then(blob => {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    })
+    .catch(error => {
+      alert('下載失敗：' + error.message);
+      console.error('Download error:', error);
+    });
+}
+
+// 頁面載入時檢查檔案可用性
+document.addEventListener('DOMContentLoaded', function() {
+  // 可選：檢查檔案是否存在
+  console.log('檔案下載介面已載入');
+});
+</script>
+
+</body>
+</html>

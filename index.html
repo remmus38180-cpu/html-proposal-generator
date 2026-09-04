@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>健保藥品調價試算產生器</title>
-<!-- 附錄A：IBM Plex Mono（英數）＋ Noto Sans TC（中文），離線時自動降階為系統字體 -->
+<!-- 附錄A：IBM Plex Sans TC（介面中文）＋ IBM Plex Mono（英數等寬）＋ Noto Serif TC（標題），離線時自動降階為系統字體 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+TC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --ground:#f2f5f5; --surface:#ffffff; --surface-2:#f7fafa;
@@ -18,9 +18,9 @@
   --warn:#8a5c0b; --warn-soft:#f7ecd6;
   --bad:#9c332b; --bad-soft:#f8e5e3;
   --radius:10px;
-  /* 附錄A 預設字族：英數等寬 + 中文思源，最後降階回系統等寬 */
+  /* 附錄A 預設字族：IBM Plex Sans TC（介面）＋ IBM Plex Mono（等寬），最後降階回系統字體 */
   --mono:'IBM Plex Mono','Noto Sans Mono CJK TC','Noto Sans TC','PingFang TC','Microsoft JhengHei',monospace;
-  --sans:'IBM Plex Mono','Noto Sans TC','PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+  --sans:'IBM Plex Sans TC','Noto Sans TC','PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
   --serif:'Noto Serif TC','Songti TC','PMingLiU',serif;
 }
 @media (prefers-color-scheme:dark){

@@ -93,13 +93,15 @@ function buildQueryWorkbook(model, filters, priceYear){
             '含量', '含量單位', '規格量', '規格單位', '藥商名稱',
             YR1 + '年申報金額', YR2 + '年申報金額', YR3 + '年申報金額',
             YR1 + '年申報量',   YR2 + '年申報量',   YR3 + '年申報量',
-            YR3 + '年申報金額占率', YR3 + '年申報量占率'];
-  var NCOL1 = H1.length;  /* 25 */
+            YR3 + '年申報金額占率', YR3 + '年申報量占率',
+            '適應症'];
+  var NCOL1 = H1.length;  /* 26 */
   var ST1 = H1.map(styleForHeader);
   ST1[0] = ST1[3] = ST1[7] = XS.BODY;              /* 分組代碼/ATC7碼/CODE 文字 */
   ST1[11] = XS.BODY;                               /* 不良品暫停支付註記 文字 */
   ST1[12] = ST1[13] = ST1[14] = ST1[15] = XS.BODY; /* 含量/含量單位/規格量/規格單位 文字 */
   ST1[23] = ST1[24] = XS.BODY;                     /* 占率 格式化字串 */
+  ST1[25] = XS.BODY;                               /* 適應症 文字 */
 
   /* 預算每個分組的 YR3 申報金額與申報量，用於計算組內占率 */
   var grpAmt3 = {}, grpQty3 = {};
@@ -182,7 +184,8 @@ function buildQueryWorkbook(model, filters, priceYear){
       Math.round(r.amtAdj[0]), Math.round(r.amtAdj[1]), Math.round(r.amtAdj[2]),
       Math.round(r.qtyAdj[0]), Math.round(r.qtyAdj[1]), Math.round(r.qtyAdj[2]),
       ga3 ? fmtRate(r.amtAdj[2] / ga3) : '',   /* YR3 申報金額占率 */
-      gq3 ? fmtRate(r.qtyAdj[2] / gq3) : ''    /* YR3 申報量占率 */
+      gq3 ? fmtRate(r.qtyAdj[2] / gq3) : '',  /* YR3 申報量占率 */
+      txt(d['適應症'])                           /* 適應症 */
     ];
     s1.push(dataRow(vals1, ST1, queryCodes[r.code] ? {9: XS.MARK} : null));
     nItems1++;

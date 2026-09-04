@@ -383,7 +383,7 @@ function calcTableRows(it, priceYear){
   for (i=0;i<n1+n2;i++) weights.push(74/(n1+n2));
   return {rows:[r1, r2, r3,
                 dataRow('調高後支付價', c.priceRow),
-                dataRow('整體藥費',     c.totalRow),
-                dataRow('財務衝擊',     c.impactRow)],
+                dataRow(segCell([{t:'整體藥費', b:true}, {t:'3', b:true, sup:true}]), c.totalRow),
+                dataRow(segCell([{t:'財務衝擊', b:true}, {t:'4', b:true, sup:true}]), c.impactRow)],
           weights: weights};
 }

@@ -91,12 +91,10 @@ function reportToDocx(rep){
     b += para(txt(itm.drug['藥品名稱']) + '（藥品代碼：' + itm.code + '）', lv(L1, {after:40}));
     var ct = calcTableRows(itm, rep.priceYear);
     b += docTableRaw(ct.rows, ct.weights);
-    /* 表格下方備註：帶出級距判定與整體藥費所用的兩個數字 */
-    var mo = itm.calc.monthlyAmt, av = itm.calc.avgQty;
+    /* 表格下方備註：僅保留級距判定用的每月申報金額（申報量已移至 註3/4） */
+    var mo = itm.calc.monthlyAmt;
     b += para('　整組每月平均申報金額(' + YR3 + '年)：'
-            + (mo === null || mo === undefined ? '－' : fmt(Math.round(mo))) + ' 元；'
-            + '同分組近三年平均申報量：'
-            + (av === null || av === undefined ? '－' : fmt(Math.round(av))),
+            + (mo === null || mo === undefined ? '－' : fmt(Math.round(mo))) + ' 元',
             {sz:22, indent:960});
     b += GAP();
   }
@@ -113,8 +111,17 @@ function reportToDocx(rep){
     }
   }
   b += para(rep.art40, {sz:22, indent:960, hanging:0});
-  b += para('※ 整體藥費＝調高後支付價 × 同分組近三年平均申報量(QTY)', {sz:22, indent:960});
-  b += para('※ 財務衝擊＝(調高後支付價 － 健保價) × 同分組近三年平均申報量(QTY)', {sz:22, indent:960});
+  /* 註3／註4：含每個項目的實際申報量數字 */
+  for (i=0;i<rep.items.length;i++){
+    var itm3 = rep.items[i];
+    var av3 = itm3.calc.avgQty;
+    var avStr3 = (av3 === null || av3 === undefined) ? '－' : fmt(Math.round(av3));
+    var tag3 = rep.items.length > 1 ? '（項次 ' + (i+1) + '）' : '';
+    b += para('註3：' + tag3 + '整體藥費＝調高後支付價 × 同分組近三年平均申報量(QTY) ＝ 調高後支付價 × ' + avStr3,
+              {sz:22, indent:1200, hanging:560});
+    b += para('註4：' + tag3 + '財務衝擊＝(調高後支付價 － 健保價) × 同分組近三年平均申報量(QTY) ＝ (調高後支付價 － 健保價) × ' + avStr3,
+              {sz:22, indent:1200, hanging:560});
+  }
   b += GAP();
 
   /* 七、八 */

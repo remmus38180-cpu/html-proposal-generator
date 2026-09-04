@@ -72,18 +72,19 @@ function buildQueryWorkbook(model, filters, priceYear){
      排序：分組代碼↑ → 0元置後 → 申報金額↓ → CODE↑
      標記：命中篩選條件的品項以淡藍底色標出（藥品名稱欄，H 欄，index 7）
      小計：每個分組結束時插入灰底小計列                                    */
-  var H1 = ['分組代碼', '分組名稱', 'ATC7碼', 'ATC名稱', '劑型', 'CODE',
+  var H1 = ['分組代碼', '分組名稱', '分類分組類別', 'ATC7碼', 'ATC名稱', '劑型',
+            '藥品分類_名稱', 'CODE',
             '中文名稱', '藥品名稱', '支付價' + priceYear, '不良品暫停支付註記',
             '含量', '含量單位', '規格量', '規格單位', '藥商名稱',
             YR1 + '年申報金額', YR2 + '年申報金額', YR3 + '年申報金額',
             YR1 + '年申報量',   YR2 + '年申報量',   YR3 + '年申報量',
             YR3 + '年申報金額占率', YR3 + '年申報量占率'];
-  var NCOL1 = H1.length;  /* 23 */
+  var NCOL1 = H1.length;  /* 25 */
   var ST1 = H1.map(styleForHeader);
-  ST1[0] = ST1[2] = ST1[5] = XS.BODY;             /* 分組代碼/ATC7碼/CODE 文字 */
-  ST1[9] = XS.BODY;                                /* 不良品暫停支付註記 文字 */
-  ST1[10] = ST1[11] = ST1[12] = ST1[13] = XS.BODY; /* 含量/含量單位/規格量/規格單位 文字 */
-  ST1[21] = ST1[22] = XS.DEC;                      /* 占率 小數 */
+  ST1[0] = ST1[3] = ST1[7] = XS.BODY;              /* 分組代碼/ATC7碼/CODE 文字 */
+  ST1[11] = XS.BODY;                               /* 不良品暫停支付註記 文字 */
+  ST1[12] = ST1[13] = ST1[14] = ST1[15] = XS.BODY; /* 含量/含量單位/規格量/規格單位 文字 */
+  ST1[23] = ST1[24] = XS.DEC;                      /* 占率 小數 */
 
   /* 預算每個分組的 YR3 申報金額與申報量，用於計算組內占率 */
   var grpAmt3 = {}, grpQty3 = {};
@@ -127,13 +128,13 @@ function buildQueryWorkbook(model, filters, priceYear){
     for (var k=0;k<NCOL1;k++) row[k] = xcell('', XS.SUB);
     row[0] = xcell(gcode, XS.SUB);
     row[1] = xcell(gnm,   XS.SUB);
-    row[7] = xcell('分組小計', XS.SUB);
-    row[15] = xcell(Math.round(gAmt1[0]), XS.SUBINT);
-    row[16] = xcell(Math.round(gAmt1[1]), XS.SUBINT);
-    row[17] = xcell(Math.round(gAmt1[2]), XS.SUBINT);
-    row[18] = xcell(Math.round(gQty1[0]), XS.SUBINT);
-    row[19] = xcell(Math.round(gQty1[1]), XS.SUBINT);
-    row[20] = xcell(Math.round(gQty1[2]), XS.SUBINT);
+    row[9] = xcell('分組小計', XS.SUB);
+    row[17] = xcell(Math.round(gAmt1[0]), XS.SUBINT);
+    row[18] = xcell(Math.round(gAmt1[1]), XS.SUBINT);
+    row[19] = xcell(Math.round(gAmt1[2]), XS.SUBINT);
+    row[20] = xcell(Math.round(gQty1[0]), XS.SUBINT);
+    row[21] = xcell(Math.round(gQty1[1]), XS.SUBINT);
+    row[22] = xcell(Math.round(gQty1[2]), XS.SUBINT);
     /* 占率欄：小計列留空（分組內總計 = 100%，無意義） */
     return row;
   }
@@ -150,8 +151,11 @@ function buildQueryWorkbook(model, filters, priceYear){
     var ga3 = grpAmt3[r.grp] || 0, gq3 = grpQty3[r.grp] || 0;
     var vals1 = [
       r.grp, txt(d['分組名稱']),
+      txt(d['分類分組類別']),                          /* 分類分組類別 */
       atcOf(d), txt(d['ATC名稱']),
-      txt(d['劑型']), r.code,
+      txt(d['劑型']),
+      txt(d['藥品分類_名稱']),                         /* 藥品分類_名稱 */
+      r.code,
       txt(d['中文名稱']), txt(d['藥品名稱']),
       r.price,
       txt(d['不良品暫停支付註記']),
@@ -165,7 +169,7 @@ function buildQueryWorkbook(model, filters, priceYear){
       ga3 ? r.amtAdj[2] / ga3 : '',   /* YR3 申報金額占率 */
       gq3 ? r.qtyAdj[2] / gq3 : ''    /* YR3 申報量占率 */
     ];
-    s1.push(dataRow(vals1, ST1, queryCodes[r.code] ? {7: XS.MARK} : null));
+    s1.push(dataRow(vals1, ST1, queryCodes[r.code] ? {9: XS.MARK} : null));
     nItems1++;
     for (j=0;j<3;j++){ gQty1[j] += r.qtyAdj[j]; gAmt1[j] += r.amtAdj[j]; tQty1[j] += r.qtyAdj[j]; tAmt1[j] += r.amtAdj[j]; }
   }
@@ -175,11 +179,11 @@ function buildQueryWorkbook(model, filters, priceYear){
   if (nItems1){
     var tot1 = new Array(NCOL1);
     for (i=0;i<NCOL1;i++) tot1[i] = xcell('', XS.SUB);
-    tot1[7]  = xcell('總計', XS.SUB);
-    tot1[15] = xcell(Math.round(tAmt1[0]), XS.SUBINT); tot1[16] = xcell(Math.round(tAmt1[1]), XS.SUBINT);
-    tot1[17] = xcell(Math.round(tAmt1[2]), XS.SUBINT);
-    tot1[18] = xcell(Math.round(tQty1[0]), XS.SUBINT); tot1[19] = xcell(Math.round(tQty1[1]), XS.SUBINT);
-    tot1[20] = xcell(Math.round(tQty1[2]), XS.SUBINT);
+    tot1[9]  = xcell('總計', XS.SUB);
+    tot1[17] = xcell(Math.round(tAmt1[0]), XS.SUBINT); tot1[18] = xcell(Math.round(tAmt1[1]), XS.SUBINT);
+    tot1[19] = xcell(Math.round(tAmt1[2]), XS.SUBINT);
+    tot1[20] = xcell(Math.round(tQty1[0]), XS.SUBINT); tot1[21] = xcell(Math.round(tQty1[1]), XS.SUBINT);
+    tot1[22] = xcell(Math.round(tQty1[2]), XS.SUBINT);
     s1.push(tot1);
   }
   if (!nItems1) s1.push([xcell('查無符合篩選條件的分組項目。', XS.NOTE)]);

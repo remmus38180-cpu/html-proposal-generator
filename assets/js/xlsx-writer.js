@@ -33,11 +33,11 @@ function stylesXml(){
     + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     + '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.###"/></numFmts>'
     + '<fonts count="5">'
-      + font(10, false, '161616')          /* 0 內文 */
-      + font(10, true,  '161616')          /* 1 粗體 */
+      + font(10, false, '000000')          /* 0 內文 */
+      + font(10, true,  '000000')          /* 1 粗體 */
       + font(14, true,  '0F62FE')          /* 2 標題 */
-      + font(9,  false, '262626')          /* 3 備註 */
-      + font(11, true,  '161616')          /* 4 區塊標題 */
+      + font(9,  false, '1C1C1C')          /* 3 備註 */
+      + font(11, true,  '000000')          /* 4 區塊標題 */
     + '</fonts>'
     + '<fills count="5">' + fill(null) + '<fill><patternFill patternType="gray125"/></fill>'
       + fill('D0E2FF')                     /* 2 表頭淺藍 */

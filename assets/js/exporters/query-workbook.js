@@ -230,10 +230,17 @@ function buildQueryWorkbook(model, filters, priceYear){
     return row;
   }
 
+  /* 每個分組有幾種 ATC，單一 ATC 的分組不輸出小計 */
+  var grpAtcCount = {};
+  for (i=0;i<grpAtcOrder.length;i++){
+    var gc_ = grpAtcMap[grpAtcOrder[i]].grp;
+    grpAtcCount[gc_] = (grpAtcCount[gc_] || 0) + 1;
+  }
+
   for (i=0;i<grpAtcOrder.length;i++){
     var ent2 = grpAtcMap[grpAtcOrder[i]];
     if (cur2 !== null && ent2.grp !== cur2){
-      s2.push(subtotal2(cur2, cur2Nm));
+      if (grpAtcCount[cur2] > 1) s2.push(subtotal2(cur2, cur2Nm));
       gCnt2 = 0; gQty2 = [0,0,0]; gAmt2 = [0,0,0];
     }
     cur2 = ent2.grp; cur2Nm = ent2.grpName;
@@ -248,7 +255,7 @@ function buildQueryWorkbook(model, filters, priceYear){
     gCnt2 += ent2.cnt; tCnt2 += ent2.cnt;
     for (j=0;j<3;j++){ gQty2[j] += ent2.qty[j]; gAmt2[j] += ent2.amt[j]; tQty2[j] += ent2.qty[j]; tAmt2[j] += ent2.amt[j]; }
   }
-  if (cur2 !== null) s2.push(subtotal2(cur2, cur2Nm));
+  if (cur2 !== null && grpAtcCount[cur2] > 1) s2.push(subtotal2(cur2, cur2Nm));
   if (nRows2){
     var tot2 = new Array(NCOL2);
     for (i=0;i<NCOL2;i++) tot2[i] = xcell('', XS.SUB);

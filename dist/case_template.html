@@ -2853,9 +2853,10 @@ function reportToDocx(rep){
     var av3 = itm3.calc.avgQty;
     var avStr3 = (av3 === null || av3 === undefined) ? '－' : fmt(Math.round(av3));
     var tag3 = rep.items.length > 1 ? '（項次 ' + (i+1) + '）' : '';
-    b += para('註3：' + tag3 + '整體藥費＝調高後支付價 × 同分組近三年平均申報量(QTY) ＝ 調高後支付價 × ' + avStr3,
+    var qtyRange = (YR3-2) + '~' + YR3 + '年';
+    b += para('註3：' + tag3 + '整體藥費＝調高後支付價 × 同分組近三年平均申報量(' + qtyRange + ') ＝ 調高後支付價 × ' + avStr3,
               {sz:22, indent:1200, hanging:560});
-    b += para('註4：' + tag3 + '財務衝擊＝(調高後支付價 － 健保價) × 同分組近三年平均申報量(QTY) ＝ (調高後支付價 － 健保價) × ' + avStr3,
+    b += para('註4：' + tag3 + '財務衝擊＝(調高後支付價 － 健保價) × 同分組近三年平均申報量(' + qtyRange + ') ＝ (調高後支付價 － 健保價) × ' + avStr3,
               {sz:22, indent:1200, hanging:560});
   }
   b += GAP();

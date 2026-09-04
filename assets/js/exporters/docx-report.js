@@ -93,7 +93,7 @@ function reportToDocx(rep){
     b += docTableRaw(ct.rows, ct.weights);
     /* 表格下方備註：僅保留級距判定用的每月申報金額（申報量已移至 註3/4） */
     var mo = itm.calc.monthlyAmt;
-    b += para('　整組每月平均申報金額(' + YR3 + '年)：'
+    b += para('※ 整組平均每月申報金額(' + YR3 + '年)：'
             + (mo === null || mo === undefined ? '－' : fmt(Math.round(mo))) + ' 元',
             {sz:22, indent:960});
     b += GAP();

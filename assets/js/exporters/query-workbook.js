@@ -208,12 +208,13 @@ function buildQueryWorkbook(model, filters, priceYear){
       grpAtcMap[key2] = {
         grp: gc2, grpName: txt(d2['分組名稱']),
         atc: atc2, atcName: txt(d2['ATC名稱']),
-        cnt: 0, qty: [0,0,0], amt: [0,0,0]
+        cnt: 0, qty: [0,0,0], amt: [0,0,0], priceSet: {}
       };
       grpAtcOrder.push(key2);
     }
     var ent = grpAtcMap[key2];
     ent.cnt++;
+    ent.priceSet[r2.price] = 1;            /* 蒐集組內出現的支付價（去重） */
     for (j=0;j<3;j++){ ent.qty[j] += r2.qtyAdj[j]; ent.amt[j] += r2.amtAdj[j]; }
   }
   grpAtcOrder.sort(function(a, b){
@@ -223,12 +224,14 @@ function buildQueryWorkbook(model, filters, priceYear){
   });
 
   var H2 = ['分組代碼', '分組名稱', 'ATC7碼', 'ATC名稱', '項目數',
+            '支付價' + priceYear + '（臚列）',
             YR1 + '年申報量', YR1 + '年申報金額',
             YR2 + '年申報量', YR2 + '年申報金額',
             YR3 + '年申報量', YR3 + '年申報金額'];
   var NCOL2 = H2.length;
   var ST2 = H2.map(styleForHeader);
   ST2[0] = ST2[2] = XS.BODY;   /* 分組代碼/ATC7碼 文字 */
+  ST2[5] = XS.BODY;             /* 支付價臚列 文字 */
 
   var s2 = [
     [xcell('分組與ATC彙總', XS.TITLE)],
@@ -248,9 +251,9 @@ function buildQueryWorkbook(model, filters, priceYear){
     row[1] = xcell(gnm,   XS.SUB);
     row[2] = xcell('分組小計', XS.SUB);
     row[4] = xcell(gCnt2, XS.SUBINT);
-    row[5] = xcell(Math.round(gQty2[0]), XS.SUBINT); row[6]  = xcell(Math.round(gAmt2[0]), XS.SUBINT);
-    row[7] = xcell(Math.round(gQty2[1]), XS.SUBINT); row[8]  = xcell(Math.round(gAmt2[1]), XS.SUBINT);
-    row[9] = xcell(Math.round(gQty2[2]), XS.SUBINT); row[10] = xcell(Math.round(gAmt2[2]), XS.SUBINT);
+    row[6] = xcell(Math.round(gQty2[0]), XS.SUBINT); row[7]  = xcell(Math.round(gAmt2[0]), XS.SUBINT);
+    row[8] = xcell(Math.round(gQty2[1]), XS.SUBINT); row[9]  = xcell(Math.round(gAmt2[1]), XS.SUBINT);
+    row[10]= xcell(Math.round(gQty2[2]), XS.SUBINT); row[11] = xcell(Math.round(gAmt2[2]), XS.SUBINT);
     return row;
   }
 
@@ -268,8 +271,12 @@ function buildQueryWorkbook(model, filters, priceYear){
       gCnt2 = 0; gQty2 = [0,0,0]; gAmt2 = [0,0,0];
     }
     cur2 = ent2.grp; cur2Nm = ent2.grpName;
+    var priceList2 = Object.keys(ent2.priceSet)
+      .map(Number).sort(function(a,b){return a-b;})
+      .join(' / ');
     var vals2 = [
       ent2.grp, ent2.grpName, ent2.atc, ent2.atcName, ent2.cnt,
+      priceList2,
       Math.round(ent2.qty[0]), Math.round(ent2.amt[0]),
       Math.round(ent2.qty[1]), Math.round(ent2.amt[1]),
       Math.round(ent2.qty[2]), Math.round(ent2.amt[2])
@@ -285,9 +292,9 @@ function buildQueryWorkbook(model, filters, priceYear){
     for (i=0;i<NCOL2;i++) tot2[i] = xcell('', XS.SUB);
     tot2[2]  = xcell('總計', XS.SUB);
     tot2[4]  = xcell(tCnt2, XS.SUBINT);
-    tot2[5]  = xcell(Math.round(tQty2[0]), XS.SUBINT); tot2[6]  = xcell(Math.round(tAmt2[0]), XS.SUBINT);
-    tot2[7]  = xcell(Math.round(tQty2[1]), XS.SUBINT); tot2[8]  = xcell(Math.round(tAmt2[1]), XS.SUBINT);
-    tot2[9]  = xcell(Math.round(tQty2[2]), XS.SUBINT); tot2[10] = xcell(Math.round(tAmt2[2]), XS.SUBINT);
+    tot2[6]  = xcell(Math.round(tQty2[0]), XS.SUBINT); tot2[7]  = xcell(Math.round(tAmt2[0]), XS.SUBINT);
+    tot2[8]  = xcell(Math.round(tQty2[1]), XS.SUBINT); tot2[9]  = xcell(Math.round(tAmt2[1]), XS.SUBINT);
+    tot2[10] = xcell(Math.round(tQty2[2]), XS.SUBINT); tot2[11] = xcell(Math.round(tAmt2[2]), XS.SUBINT);
     s2.push(tot2);
   }
   if (!nRows2) s2.push([xcell('查無符合篩選條件的分組。', XS.NOTE)]);

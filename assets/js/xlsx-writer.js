@@ -20,10 +20,10 @@ function stylesXml(){
     return rgb ? '<fill><patternFill patternType="solid"><fgColor rgb="FF'+rgb+'"/><bgColor indexed="64"/></patternFill></fill>'
                : '<fill><patternFill patternType="none"/></fill>';
   }
-  var thin = '<left style="thin"><color rgb="FFE0E0E0"/></left>'
-           + '<right style="thin"><color rgb="FFE0E0E0"/></right>'
-           + '<top style="thin"><color rgb="FFE0E0E0"/></top>'
-           + '<bottom style="thin"><color rgb="FFE0E0E0"/></bottom><diagonal/>';
+  var thin = '<left style="thin"><color rgb="FFC8C8C8"/></left>'
+           + '<right style="thin"><color rgb="FFC8C8C8"/></right>'
+           + '<top style="thin"><color rgb="FFC8C8C8"/></top>'
+           + '<bottom style="thin"><color rgb="FFC8C8C8"/></bottom><diagonal/>';
   function xf(fontId, fillId, borderId, numFmt, align){
     return '<xf numFmtId="'+(numFmt||0)+'" fontId="'+fontId+'" fillId="'+fillId+'" borderId="'+borderId+'" xfId="0"'
       + (numFmt ? ' applyNumberFormat="1"' : '') + ' applyFont="1" applyFill="1" applyBorder="1"'
@@ -36,7 +36,7 @@ function stylesXml(){
       + font(10, false, '161616')          /* 0 內文 */
       + font(10, true,  '161616')          /* 1 粗體 */
       + font(14, true,  '0F62FE')          /* 2 標題 */
-      + font(9,  false, '525252')          /* 3 備註 */
+      + font(9,  false, '262626')          /* 3 備註 */
       + font(11, true,  '161616')          /* 4 區塊標題 */
     + '</fonts>'
     + '<fills count="5">' + fill(null) + '<fill><patternFill patternType="gray125"/></fill>'

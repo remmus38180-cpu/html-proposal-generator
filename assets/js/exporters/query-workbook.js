@@ -167,15 +167,17 @@ function buildQueryWorkbook(model, filters, priceYear){
 
   /* ---------- Sheet 2：分組與 ATC 彙總 ----------
      粒度：分組代碼 × ATC7碼 聚合層級
-     資料來源：同 Sheet 1（同分組全部品項，含 0 元）
+     資料來源：同 Sheet 1 的分組範圍，但遵守「計數規則」：
+               排除「支付價＝0 且不良品暫停支付註記≠Y」的品項（isCounted）
      欄位：分組代碼(A) 分組名稱(B) ATC7碼(C) ATC名稱(D) 項目數(E)
            YR1-3 申報量(F-K) YR1-3 申報金額
-     項目數：該分組×ATC 組合內的品項數（含 0 元）
+     項目數：該分組×ATC 組合的有效品項數（已排除 0 元且非不良品者）
      排序：分組代碼↑ → ATC7碼↑
      小計：每個分組結束時插入灰底小計列（該分組全部 ATC 加總）         */
   var grpAtcMap = {}, grpAtcOrder = [];
   for (i=0;i<grpRows.length;i++){
     var r2 = grpRows[i], d2 = r2.d;
+    if (!isCounted(r2)) continue;   /* 排除 0 元且不良品註記≠Y 的品項 */
     var gc2 = r2.grp, atc2 = atcOf(d2);
     var key2 = gc2 + '|' + atc2;
     if (!grpAtcMap[key2]){
@@ -207,7 +209,7 @@ function buildQueryWorkbook(model, filters, priceYear){
   var s2 = [
     [xcell('分組與ATC彙總', XS.TITLE)],
     [xcell(titleNote('聚合層級：分組代碼 × ATC7碼'
-      + '　※項目數含 0 元品項　※灰底＝分組小計與總計'), XS.NOTE)],
+      + '　※項目數排除「0元且不良品註記≠Y」品項　※灰底＝分組小計與總計'), XS.NOTE)],
     H2.map(function(h){ return xcell(h, XS.HEAD); })
   ];
 

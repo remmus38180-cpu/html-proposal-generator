@@ -1674,6 +1674,21 @@ function buildSasWorkbook(model, filters, targets, priceYear, opt){
 
 var QUERY_BANNER = '此為背景查詢版，非正式提案';
 
+/* 占率格式化：ratio 為 0~1 的小數
+   ≥10%  → 整數 "15%"
+   1~10% → 1 位小數 "9.9%"
+   <1%   → 顯示至第一個有效數字 "0.95%"、"0.09%" */
+function fmtRate(ratio){
+  if (ratio === '' || ratio === null || ratio === undefined || !isFinite(ratio)) return '';
+  var pct = ratio * 100;
+  if (pct === 0) return '0%';
+  if (pct >= 10) return Math.round(pct) + '%';
+  if (pct >= 1)  return pct.toFixed(1) + '%';
+  /* <1%：找第一個有效數字的位數 */
+  var d = Math.max(2, Math.ceil(-Math.log10(pct)) + 1);
+  return pct.toFixed(d) + '%';
+}
+
 function queryStamp(){
   var d = new Date();
   var p = function(n){ return (n < 10 ? '0' : '') + n; };
@@ -1744,7 +1759,7 @@ function buildQueryWorkbook(model, filters, priceYear){
   ST1[0] = ST1[3] = ST1[7] = XS.BODY;              /* 分組代碼/ATC7碼/CODE 文字 */
   ST1[11] = XS.BODY;                               /* 不良品暫停支付註記 文字 */
   ST1[12] = ST1[13] = ST1[14] = ST1[15] = XS.BODY; /* 含量/含量單位/規格量/規格單位 文字 */
-  ST1[23] = ST1[24] = XS.DEC;                      /* 占率 小數 */
+  ST1[23] = ST1[24] = XS.BODY;                     /* 占率 格式化字串 */
 
   /* 預算每個分組的 YR3 申報金額與申報量，用於計算組內占率 */
   var grpAmt3 = {}, grpQty3 = {};
@@ -1826,8 +1841,8 @@ function buildQueryWorkbook(model, filters, priceYear){
       txt(d['藥商名稱']),
       Math.round(r.amtAdj[0]), Math.round(r.amtAdj[1]), Math.round(r.amtAdj[2]),
       Math.round(r.qtyAdj[0]), Math.round(r.qtyAdj[1]), Math.round(r.qtyAdj[2]),
-      ga3 ? r.amtAdj[2] / ga3 : '',   /* YR3 申報金額占率 */
-      gq3 ? r.qtyAdj[2] / gq3 : ''    /* YR3 申報量占率 */
+      ga3 ? fmtRate(r.amtAdj[2] / ga3) : '',   /* YR3 申報金額占率 */
+      gq3 ? fmtRate(r.qtyAdj[2] / gq3) : ''    /* YR3 申報量占率 */
     ];
     s1.push(dataRow(vals1, ST1, queryCodes[r.code] ? {9: XS.MARK} : null));
     nItems1++;

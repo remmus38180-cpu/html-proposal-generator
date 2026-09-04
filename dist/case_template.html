@@ -1723,21 +1723,24 @@ function buildQueryWorkbook(model, filters, priceYear){
   /* ---------- Sheet 1：同分組項目明細 ----------
      粒度：品項（CODE）層級，含全部品項（含 0 元）
      欄位：分組代碼(A) CODE(B) 中文名稱(C) 藥品名稱(D) ATC7碼(E) ATC名稱(F)
-           支付價(G) 含量(H) 規格量(I) 分組名稱(J) 劑型(K) 藥商名稱(L)
-           YR1-3 申報量(M-R) YR1-3 申報金額  ← 數量在前，金額在後（同分頁慣例）
+           支付價(G) 含量(H) 含量單位(I) 規格量(J) 規格單位(K) 不良品暫停支付註記(L)
+           分組名稱(M) 劑型(N) 藥商名稱(O)
+           YR1-3 申報量(P-U) YR1-3 申報金額  ← 數量在前，金額在後（同分頁慣例）
      排序：調劑大類↑ → 分組代碼↑ → 0元置後 → 許可證層AMT↓ → 當期AMT↓ → CODE↑
      標記：命中篩選條件的品項以淡藍底色標出（同提案附件「本案藥品」慣例）
      小計：每個分組結束時插入灰底小計列（含未列出項目的加總）             */
   var H1 = ['分組代碼', 'CODE', '中文名稱', '藥品名稱', 'ATC7碼', 'ATC名稱',
-            '支付價' + priceYear, '含量', '規格量',
+            '支付價' + priceYear, '含量', '含量單位', '規格量', '規格單位',
+            '不良品暫停支付註記',
             '分組名稱', '劑型', '藥商名稱',
             YR1 + '年申報量', YR1 + '年申報金額',
             YR2 + '年申報量', YR2 + '年申報金額',
             YR3 + '年申報量', YR3 + '年申報金額'];
-  var NCOL1 = H1.length;
+  var NCOL1 = H1.length;  /* 21 */
   var ST1 = H1.map(styleForHeader);
-  ST1[0] = ST1[1] = ST1[4] = XS.BODY;   /* 分組代碼/CODE/ATC7碼 文字 */
-  ST1[7] = ST1[8] = XS.BODY;            /* 含量/規格量 可含單位，保留文字 */
+  ST1[0] = ST1[1] = ST1[4] = XS.BODY;          /* 分組代碼/CODE/ATC7碼 文字 */
+  ST1[7] = ST1[8] = ST1[9] = ST1[10] = XS.BODY; /* 含量/含量單位/規格量/規格單位 文字 */
+  ST1[11] = XS.BODY;                             /* 不良品暫停支付註記 文字 */
 
   /* 排序 */
   var wt1 = {};
@@ -1776,13 +1779,13 @@ function buildQueryWorkbook(model, filters, priceYear){
     for (var k=0;k<NCOL1;k++) row[k] = xcell('', XS.SUB);
     row[0]  = xcell(gcode, XS.SUB);
     row[3]  = xcell('分組小計', XS.SUB);
-    row[9]  = xcell(g ? g.name : '', XS.SUB);
-    row[12] = xcell(Math.round(gQty1[0]), XS.SUBINT);
-    row[13] = xcell(Math.round(gAmt1[0]), XS.SUBINT);
-    row[14] = xcell(Math.round(gQty1[1]), XS.SUBINT);
-    row[15] = xcell(Math.round(gAmt1[1]), XS.SUBINT);
-    row[16] = xcell(Math.round(gQty1[2]), XS.SUBINT);
-    row[17] = xcell(Math.round(gAmt1[2]), XS.SUBINT);
+    row[12] = xcell(g ? g.name : '', XS.SUB);  /* 分組名稱 */
+    row[15] = xcell(Math.round(gQty1[0]), XS.SUBINT);
+    row[16] = xcell(Math.round(gAmt1[0]), XS.SUBINT);
+    row[17] = xcell(Math.round(gQty1[1]), XS.SUBINT);
+    row[18] = xcell(Math.round(gAmt1[1]), XS.SUBINT);
+    row[19] = xcell(Math.round(gQty1[2]), XS.SUBINT);
+    row[20] = xcell(Math.round(gAmt1[2]), XS.SUBINT);
     return row;
   }
 
@@ -1798,9 +1801,12 @@ function buildQueryWorkbook(model, filters, priceYear){
       r.grp, r.code,
       txt(d['中文名稱']), txt(d['藥品名稱']),
       atcOf(d), txt(d['ATC名稱']),
-      (r.price === 0 ? '－' : r.price),           /* 0元不顯示數字 */
+      r.price,                                     /* 0元直接顯示 0 */
       txt(d['成分含量']) || txt(d['成分及含量']),  /* 含量 */
+      txt(d['含量單位']),                           /* 含量單位 */
       txt(d['規格量']),                             /* 規格量 */
+      txt(d['規格單位']),                           /* 規格單位 */
+      txt(d['不良品暫停支付註記']),                 /* 不良品暫停支付註記 */
       txt(d['分組名稱']), txt(d['劑型']), txt(d['藥商名稱']),
       Math.round(r.qtyAdj[0]), Math.round(r.amtAdj[0]),
       Math.round(r.qtyAdj[1]), Math.round(r.amtAdj[1]),
@@ -1817,9 +1823,9 @@ function buildQueryWorkbook(model, filters, priceYear){
     var tot1 = new Array(NCOL1);
     for (i=0;i<NCOL1;i++) tot1[i] = xcell('', XS.SUB);
     tot1[3]  = xcell('總計', XS.SUB);
-    tot1[12] = xcell(Math.round(tQty1[0]), XS.SUBINT); tot1[13] = xcell(Math.round(tAmt1[0]), XS.SUBINT);
-    tot1[14] = xcell(Math.round(tQty1[1]), XS.SUBINT); tot1[15] = xcell(Math.round(tAmt1[1]), XS.SUBINT);
-    tot1[16] = xcell(Math.round(tQty1[2]), XS.SUBINT); tot1[17] = xcell(Math.round(tAmt1[2]), XS.SUBINT);
+    tot1[15] = xcell(Math.round(tQty1[0]), XS.SUBINT); tot1[16] = xcell(Math.round(tAmt1[0]), XS.SUBINT);
+    tot1[17] = xcell(Math.round(tQty1[1]), XS.SUBINT); tot1[18] = xcell(Math.round(tAmt1[1]), XS.SUBINT);
+    tot1[19] = xcell(Math.round(tQty1[2]), XS.SUBINT); tot1[20] = xcell(Math.round(tAmt1[2]), XS.SUBINT);
     s1.push(tot1);
   }
   if (!nItems1) s1.push([xcell('查無符合篩選條件的分組項目。', XS.NOTE)]);

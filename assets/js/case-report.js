@@ -184,9 +184,9 @@ function buildCaseReport(caseRows, model, priceYear){
     var showAtc = (mode === 'PREFIX5') || anyMultiAtc;
 
     var head = showAtc
-      ? ['項次','分組名稱','ATC7碼','ATC名稱','項目數','現行健保支付價(' + pyLabel(priceYear) + ')(元)',
+      ? ['項次','分組名稱','ATC7碼','ATC名稱','項目數', pyLabel(priceYear) + '支付價(元)',
          YR3+'年整組申報金額(元)', YR3+'年整組申報量']
-      : ['項次','分組名稱','項目數','現行健保支付價(' + pyLabel(priceYear) + ')(元)',
+      : ['項次','分組名稱','項目數', pyLabel(priceYear) + '支付價(元)',
          YR3+'年整組申報金額(元)', YR3+'年整組申報量'];
     var widths = showAtc ? [12,21,12,14,7,15,16,13] : [11,28,12,17,17,15];
 
@@ -343,14 +343,14 @@ function buildItemCalc(it){
 
 /* 表一：刪除「整組每月平均申報金額」，申報量移至最後；金額／數量欄名帶年度 */
 function T1H(yr3, py){
-  return ['項次','藥品名稱','藥商','現行健保支付價(' + pyLabel(py) + ')(元)',
+  return ['項次','藥品名稱','藥商', pyLabel(py) + '支付價(元)',
           yr3 + '年整組申報金額(元)', yr3 + '年占率', yr3 + '年整組申報量'];
 }
 
 var T1W = [11,21,12,14,14,8,12];
 
 function T5H(yr3, py){
-  return ['藥品名稱','分類分組名稱','現行支付價(' + pyLabel(py) + ')(元)','廠商建議價(元)',
+  return ['藥品名稱','分類分組名稱', pyLabel(py) + '支付價(元)','廠商建議價(元)',
           yr3 + '年廠商占率','廠商成本(元)','十國藥價中位數(元)'];
 }
 

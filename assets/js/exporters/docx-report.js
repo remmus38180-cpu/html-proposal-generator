@@ -120,7 +120,22 @@ function reportToDocx(rep){
     var qtyRange = (YR3-2) + '~' + YR3 + '年';
     b += para('註3：' + tag3 + '整體藥費＝調高後支付價 × 同分組近三年平均申報量(' + qtyRange + ') ＝ 調高後支付價 × ' + avStr3,
               {sz:22, indent:1200, hanging:560});
-    b += para('註4：' + tag3 + '財務衝擊＝(調高後支付價 － 健保價) × 同分組近三年平均申報量(' + qtyRange + ') ＝ (調高後支付價 － 健保價) × ' + avStr3,
+    /* 註4：單價→(v-nhi)×avg；多價→Σ(v-p_j)×avgQty_j 逐項展開 */
+    var pg3 = itm3.calc.priceGroups;
+    var imp4suffix;
+    if (pg3 !== null && pg3 !== undefined && pg3.length > 0) {
+      /* 多種健保價：展開各價格群組 */
+      var parts4 = pg3
+        .filter(function(g){ return g.price !== null; })
+        .sort(function(a,b){ return a.price - b.price; })
+        .map(function(g){
+          return '(調高後支付價 － ' + fmt(g.price) + ') × ' + fmt(Math.round(g.avgQty));
+        });
+      imp4suffix = parts4.join(' ＋ ');
+    } else {
+      imp4suffix = '(調高後支付價 － 健保價) × ' + avStr3;
+    }
+    b += para('註4：' + tag3 + '財務衝擊＝(調高後支付價 － 健保價) × 同分組近三年平均申報量(' + qtyRange + ') ＝ ' + imp4suffix,
               {sz:22, indent:1200, hanging:560});
   }
   b += GAP();

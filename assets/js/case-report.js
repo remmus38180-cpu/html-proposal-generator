@@ -92,7 +92,7 @@ function buildCaseReport(caseRows, model, priceYear){
   /* ---- 核價試算 ---- */
   for (i=0;i<items.length;i++){
     var it = items[i];
-    it.calc = buildItemCalc(it);
+    it.calc = buildItemCalc(it, [model.YR1, model.YR2, model.YR3]);
   }
 
   /* ---- 表一：全案分組代碼聯集，排序 分組代碼↑ → AMT↓ ---- */
@@ -300,7 +300,7 @@ function buildCaseReport(caseRows, model, priceYear){
 }
 
 /* 單一藥品的核價試算矩陣 */
-function buildItemCalc(it){
+function buildItemCalc(it, modelYrs){
   /* 分組代碼留白的藥品沒有可用的分組層統計 —— 不可拿「空白分組」的彙總當級距與平均申報量 */
   var grp = (it.row.grp && it.grp) ? it.grp : {};
   var avg = (grp.avgQty3 === undefined) ? null : grp.avgQty3;
@@ -311,6 +311,39 @@ function buildItemCalc(it){
                                     : it.costPcts.map(function(p){ return costRefPrice(it.cost, p/100, it.lic); });
   var costHead = it.costPcts.map(function(p){ return p + '%'; });
 
+  /* ── 依健保價分組計算三年平均申報量（用於多價格財務衝擊） ──
+     同分組若只有一種支付價 → priceGroups = null（沿用現有公式）
+     有多種支付價 → priceGroups = [{price, avgQty}, …]，按 [B6] 分母規則 */
+  var priceGroups = null;
+  if (grp.rows && grp.rows.length > 0 && avg !== null && modelYrs && modelYrs.length === 3) {
+    var pqMap = {}, ri, ki, pki;
+    for (ri = 0; ri < grp.rows.length; ri++) {
+      var rr = grp.rows[ri];
+      var pk = rr.price === null ? '__null__' : String(rr.price);
+      if (!pqMap[pk]) pqMap[pk] = {price: rr.price, qty: [0, 0, 0]};
+      for (ki = 0; ki < 3; ki++) pqMap[pk].qty[ki] += rr.qtyAdj[ki];
+    }
+    var pkeys = Object.keys(pqMap);
+    /* 只計有實際數字（非null）的支付價種類 */
+    var nonNullPrices = pkeys.filter(function(k){ return k !== '__null__'; });
+    if (nonNullPrices.length > 1) {
+      priceGroups = [];
+      for (pki = 0; pki < pkeys.length; pki++) {
+        var pg = pqMap[pkeys[pki]];
+        /* 同 [B6]：依分組收載年決定納入哪幾年 */
+        var valsP = [];
+        for (ki = 0; ki < 3; ki++) {
+          if (grp.listYear !== null && grp.listYear !== undefined && modelYrs[ki] < grp.listYear) continue;
+          valsP.push(Math.round(fpClean(pg.qty[ki])*10)/10);
+        }
+        var avgP = valsP.length
+          ? Math.round(fpClean(valsP.reduce(function(a,b){return a+b;},0)/valsP.length)*10)/10
+          : 0;
+        priceGroups.push({price: pg.price, avgQty: avgP});
+      }
+    }
+  }
+
   function pTxt(v, noTen){ return noTen ? '無' : (v === null ? '－' : String(v)); }
   function amtTxt(v, noTen){
     if (noTen) return '無';
@@ -319,7 +352,17 @@ function buildItemCalc(it){
   }
   function impTxt(v, noTen){
     if (noTen) return '無';
-    if (v === null || avg === null || nhi === null) return '－';
+    if (v === null) return '－';
+    if (priceGroups !== null) {
+      /* 多價格：Σ (v - price_j) × avgQty_j，跳過 price=null 品項 */
+      var total = 0;
+      for (var gi = 0; gi < priceGroups.length; gi++) {
+        if (priceGroups[gi].price === null) continue;
+        total += (v - priceGroups[gi].price) * priceGroups[gi].avgQty;
+      }
+      return formatAmt(total);
+    }
+    if (avg === null || nhi === null) return '－';
     return formatAmt((v - nhi) * avg);
   }
   var noTen = (it.ten === null);
@@ -331,7 +374,7 @@ function buildItemCalc(it){
     totalRow:  tenVals.map(function(v){ return amtTxt(v, noTen); }).concat(costVals.map(function(v){ return amtTxt(v); })),
     impactRow: tenVals.map(function(v){ return impTxt(v, noTen); }).concat(costVals.map(function(v){ return impTxt(v); })),
     allPrices: (noTen ? [] : tenVals).concat(costVals),
-    noTen: noTen, avgQty: avg, monthlyAmt: grp.monthlyAmt,
+    noTen: noTen, avgQty: avg, priceGroups: priceGroups, monthlyAmt: grp.monthlyAmt,
     tier: tier,
     a10Pct:  tier === null ? null : A10_TIER_PCT[tier],
     costPct: tier === null ? null : COST_TIER_PCT[tier],

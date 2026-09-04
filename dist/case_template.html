@@ -1832,7 +1832,7 @@ function buildQueryWorkbook(model, filters, priceYear){
       txt(d['藥品分類_名稱']),                         /* 藥品分類_名稱 */
       r.code,
       txt(d['中文名稱']), txt(d['藥品名稱']),
-      r.price,
+      (r.price == null ? '' : String(r.price)),  /* 字串輸出避免 numFmt 尾端小數點 */
       txt(d['不良品暫停支付註記']),
       txt(d['成分含量']) || txt(d['成分及含量']),
       txt(d['含量單位']),
@@ -1900,9 +1900,8 @@ function buildQueryWorkbook(model, filters, priceYear){
 
   var H2 = ['分組代碼', '分組名稱', 'ATC7碼', 'ATC名稱', '項目數',
             '支付價' + priceYear + '（臚列）',
-            YR1 + '年申報量', YR1 + '年申報金額',
-            YR2 + '年申報量', YR2 + '年申報金額',
-            YR3 + '年申報量', YR3 + '年申報金額'];
+            YR1 + '年申報量', YR2 + '年申報量', YR3 + '年申報量',
+            YR1 + '年申報金額', YR2 + '年申報金額', YR3 + '年申報金額'];
   var NCOL2 = H2.length;
   var ST2 = H2.map(styleForHeader);
   ST2[0] = ST2[2] = XS.BODY;   /* 分組代碼/ATC7碼 文字 */
@@ -1911,7 +1910,7 @@ function buildQueryWorkbook(model, filters, priceYear){
   var s2 = [
     [xcell('分組與ATC彙總', XS.TITLE)],
     [xcell(titleNote('聚合層級：分組代碼 × ATC7碼'
-      + '　※項目數排除「0元且不良品註記≠Y」品項　※灰底＝分組小計與總計'), XS.NOTE)],
+      + '　※項目數排除「0元且不良品註記≠Y」品項　※灰底＝分組小計'), XS.NOTE)],
     H2.map(function(h){ return xcell(h, XS.HEAD); })
   ];
 
@@ -1926,9 +1925,9 @@ function buildQueryWorkbook(model, filters, priceYear){
     row[1] = xcell(gnm,   XS.SUB);
     row[2] = xcell('分組小計', XS.SUB);
     row[4] = xcell(gCnt2, XS.SUBINT);
-    row[6] = xcell(Math.round(gQty2[0]), XS.SUBINT); row[7]  = xcell(Math.round(gAmt2[0]), XS.SUBINT);
-    row[8] = xcell(Math.round(gQty2[1]), XS.SUBINT); row[9]  = xcell(Math.round(gAmt2[1]), XS.SUBINT);
-    row[10]= xcell(Math.round(gQty2[2]), XS.SUBINT); row[11] = xcell(Math.round(gAmt2[2]), XS.SUBINT);
+    row[6] = xcell(Math.round(gQty2[0]), XS.SUBINT); row[7]  = xcell(Math.round(gQty2[1]), XS.SUBINT);
+    row[8] = xcell(Math.round(gQty2[2]), XS.SUBINT); row[9]  = xcell(Math.round(gAmt2[0]), XS.SUBINT);
+    row[10]= xcell(Math.round(gAmt2[1]), XS.SUBINT); row[11] = xcell(Math.round(gAmt2[2]), XS.SUBINT);
     return row;
   }
 
@@ -1952,9 +1951,8 @@ function buildQueryWorkbook(model, filters, priceYear){
     var vals2 = [
       ent2.grp, ent2.grpName, ent2.atc, ent2.atcName, ent2.cnt,
       priceList2,
-      Math.round(ent2.qty[0]), Math.round(ent2.amt[0]),
-      Math.round(ent2.qty[1]), Math.round(ent2.amt[1]),
-      Math.round(ent2.qty[2]), Math.round(ent2.amt[2])
+      Math.round(ent2.qty[0]), Math.round(ent2.qty[1]), Math.round(ent2.qty[2]),
+      Math.round(ent2.amt[0]), Math.round(ent2.amt[1]), Math.round(ent2.amt[2])
     ];
     s2.push(dataRow(vals2, ST2, null));
     nRows2++;
@@ -1962,16 +1960,6 @@ function buildQueryWorkbook(model, filters, priceYear){
     for (j=0;j<3;j++){ gQty2[j] += ent2.qty[j]; gAmt2[j] += ent2.amt[j]; tQty2[j] += ent2.qty[j]; tAmt2[j] += ent2.amt[j]; }
   }
   if (cur2 !== null && grpAtcCount[cur2] > 1) s2.push(subtotal2(cur2, cur2Nm));
-  if (nRows2){
-    var tot2 = new Array(NCOL2);
-    for (i=0;i<NCOL2;i++) tot2[i] = xcell('', XS.SUB);
-    tot2[2]  = xcell('總計', XS.SUB);
-    tot2[4]  = xcell(tCnt2, XS.SUBINT);
-    tot2[6]  = xcell(Math.round(tQty2[0]), XS.SUBINT); tot2[7]  = xcell(Math.round(tAmt2[0]), XS.SUBINT);
-    tot2[8]  = xcell(Math.round(tQty2[1]), XS.SUBINT); tot2[9]  = xcell(Math.round(tAmt2[1]), XS.SUBINT);
-    tot2[10] = xcell(Math.round(tQty2[2]), XS.SUBINT); tot2[11] = xcell(Math.round(tAmt2[2]), XS.SUBINT);
-    s2.push(tot2);
-  }
   if (!nRows2) s2.push([xcell('查無符合篩選條件的分組。', XS.NOTE)]);
   s2 = s2.concat(footRows());
 

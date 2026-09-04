@@ -512,11 +512,10 @@ $('btnQuery').addEventListener('click', function(){
   var py = currentPy();
   try {
     var wb = buildQueryWorkbook(model, currentFilters(), py);
-    DUAL_TRACK.pathA.sheets = {sheet1:wb.counts.s1, sheet2:wb.counts.s2, sheet3:wb.counts.s3};
+    DUAL_TRACK.pathA.sheets = {sheet1:wb.counts.s1, sheet2:wb.counts.s2};
     if (!wb.counts.sel){ log('查無符合篩選條件的項目，查詢表仍會產出（僅含表頭）。', 'warn'); }
-    log('查詢表：符合條件 ' + wb.counts.sel.toLocaleString() + ' 筆 → 摘要 ' + wb.counts.s1
-        + ' 列、同分組 ' + wb.counts.s2 + ' 列（' + wb.counts.groups + ' 分組）、同ATC '
-        + wb.counts.s3 + ' 列（' + wb.counts.atc + ' 個 ATC7 碼）', 'ok');
+    log('查詢表：符合條件 ' + wb.counts.sel.toLocaleString() + ' 筆 → 定位 ' + wb.counts.groups
+        + ' 個分組，展開 ' + wb.counts.s1 + ' 項；分組×ATC彙總 ' + wb.counts.s2 + ' 列', 'ok');
     save(wb.book, '藥品背景查詢_' + py + '.xlsx');
   } catch (err){ log('查詢表產出失敗：' + err.message, 'bad'); }
 });

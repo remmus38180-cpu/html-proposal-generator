@@ -670,3 +670,99 @@ function bindPathBHandlers(){
 }
 
 refresh();
+
+/* ── 欄位選擇器面板初始化 ── */
+(function initColPicker(){
+  var panel  = $('colPickerPanel');
+  var toggle = $('btnColPicker');
+  var badge  = $('colPickerBadge');
+  var selUl  = $('colSelected');
+  var avUl   = $('colAvail');
+
+  function getKeys(){ return loadColKeys(); }
+  function setKeys(keys){ saveColKeys(keys); updateBadge(keys.length); }
+  function updateBadge(n){ badge.textContent = n + ' 欄'; }
+
+  function render(){
+    var active = getKeys();
+    var activeSet = {};
+    active.forEach(function(k){ activeSet[k] = 1; });
+    selUl.innerHTML = '';
+    avUl.innerHTML  = '';
+
+    active.forEach(function(k){
+      var c = null;
+      for (var ci=0;ci<COL_DEFS.length;ci++){ if (COL_DEFS[ci].key===k){ c=COL_DEFS[ci]; break; } }
+      if (!c) return;
+      var li = document.createElement('li');
+      li.dataset.key = k;
+      li.setAttribute('draggable', 'true');
+      li.textContent = '☰ ' + c.label;
+      var rm = document.createElement('span');
+      rm.className = 'col-rm'; rm.textContent = '✕'; rm.title = '移除';
+      rm.onclick = function(e){ e.stopPropagation(); removeKey(k); };
+      li.appendChild(rm);
+      li.addEventListener('dragstart', function(e){ e.dataTransfer.setData('text/plain', k); li.classList.add('dragging'); });
+      li.addEventListener('dragend', function(){ li.classList.remove('dragging'); });
+      li.addEventListener('dragover', function(e){ e.preventDefault(); li.classList.add('drag-over'); });
+      li.addEventListener('dragleave', function(){ li.classList.remove('drag-over'); });
+      li.addEventListener('drop', function(e){
+        e.preventDefault(); li.classList.remove('drag-over');
+        var fromKey = e.dataTransfer.getData('text/plain');
+        if (fromKey === k) return;
+        var keys = getKeys();
+        var fi = keys.indexOf(fromKey), ti = keys.indexOf(k);
+        if (fi < 0 || ti < 0) return;
+        keys.splice(fi, 1); keys.splice(ti, 0, fromKey);
+        setKeys(keys); render();
+      });
+      selUl.appendChild(li);
+    });
+
+    COL_DEFS.forEach(function(c){
+      if (activeSet[c.key]) return;
+      var li = document.createElement('li');
+      li.dataset.key = c.key;
+      li.textContent = '+ ' + c.label;
+      li.onclick = function(){ addKey(c.key); };
+      avUl.appendChild(li);
+    });
+
+    updateBadge(active.length);
+  }
+
+  function addKey(k){
+    var keys = getKeys();
+    if (keys.indexOf(k) < 0){ keys.push(k); setKeys(keys); render(); }
+  }
+  function removeKey(k){
+    var keys = getKeys().filter(function(x){ return x !== k; });
+    if (!keys.length){ alert('至少保留一個欄位'); return; }
+    setKeys(keys); render();
+  }
+
+  toggle.addEventListener('click', function(){
+    var hidden = panel.hidden;
+    panel.hidden = !hidden;
+    toggle.textContent = '📋 自訂欄位 ' + badge.textContent + (hidden ? ' ▴' : ' ▾');
+    if (!panel.hidden) render();
+  });
+
+  $('btnColClose').addEventListener('click', function(){
+    panel.hidden = true;
+    toggle.textContent = '📋 自訂欄位 ' + badge.textContent + ' ▾';
+  });
+
+  $('btnColReset').addEventListener('click', function(){
+    setKeys(COL_DEFAULT.slice()); render();
+  });
+
+  $('colPreset').addEventListener('change', function(){
+    var v = this.value;
+    if (!v) return;
+    setKeys(COL_PRESETS[v].slice()); this.value = ''; render();
+  });
+
+  /* 初始 badge */
+  updateBadge(loadColKeys().length);
+})();

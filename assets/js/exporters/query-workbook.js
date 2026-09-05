@@ -40,6 +40,203 @@ function queryScope(model, filters){
   return model.rows.filter(function(r){ return passFilter(r, filters); });
 }
 
+/* ── Sheet 1 欄位定義表（全域，供 buildQueryWorkbook 與 UI 共用） ── */
+var COL_DEFS = [
+  {
+    key: 'grp', label: '分組代碼', dynLabel: null,
+    getValue: function(r){ return r.grp; },
+    getStyle: function(){ return XS.BODY; },
+    subKey: 'grpCode',
+  },
+  {
+    key: 'grpName', label: '分組名稱', dynLabel: null,
+    getValue: function(r, d){ return txt(d['分組名稱']); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: 'grpName',
+  },
+  {
+    key: 'grpCat', label: '分類分組類別', dynLabel: null,
+    getValue: function(r, d){ return txt(d['分類分組類別']); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'atc7', label: 'ATC7碼', dynLabel: null,
+    getValue: function(r, d){ return atcOf(d); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'atcName', label: 'ATC名稱', dynLabel: null,
+    getValue: function(r, d){ return txt(d['ATC名稱']); },
+    getStyle: function(s){ return s; },
+    subKey: null,
+  },
+  {
+    key: 'form', label: '劑型', dynLabel: null,
+    getValue: function(r, d){ return txt(d['劑型']); },
+    getStyle: function(s){ return s; },
+    subKey: null,
+  },
+  {
+    key: 'drugCat', label: '藥品分類_名稱', dynLabel: null,
+    getValue: function(r, d){ return txt(d['藥品分類_名稱']); },
+    getStyle: function(s){ return s; },
+    subKey: null,
+  },
+  {
+    key: 'code', label: 'CODE', dynLabel: null,
+    getValue: function(r){ return r.code; },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'zhName', label: '中文名稱', dynLabel: null,
+    getValue: function(r, d){ return txt(d['中文名稱']); },
+    getStyle: function(s){ return s; },
+    subKey: null,
+  },
+  {
+    key: 'drugName', label: '藥品名稱', dynLabel: null,
+    getValue: function(r, d){ return txt(d['藥品名稱']); },
+    getStyle: function(s){ return s; },
+    subKey: 'drugName',
+  },
+  {
+    key: 'price', label: '支付價',
+    dynLabel: function(py){ return '支付價' + py; },
+    getValue: function(r){ return r.price == null ? '' : String(r.price); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'suspended', label: '不良品暫停支付註記', dynLabel: null,
+    getValue: function(r, d){ return txt(d['不良品暫停支付註記']); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'strength', label: '含量', dynLabel: null,
+    getValue: function(r, d){ return txt(d['成分含量']) || txt(d['成分及含量']); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'strengthUnit', label: '含量單位', dynLabel: null,
+    getValue: function(r, d){ return txt(d['含量單位']); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'pack', label: '規格量', dynLabel: null,
+    getValue: function(r, d){ return txt(d['規格量']); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'packUnit', label: '規格單位', dynLabel: null,
+    getValue: function(r, d){ return txt(d['規格單位']); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'vendor', label: '藥商名稱', dynLabel: null,
+    getValue: function(r, d){ return txt(d['藥商名稱']); },
+    getStyle: function(s){ return s; },
+    subKey: null,
+  },
+  {
+    key: 'amt0', label: 'YR1年申報金額',
+    dynLabel: function(py, yr1){ return yr1 + '年申報金額'; },
+    getValue: function(r){ return Math.round(r.amtAdj[0]); },
+    getStyle: function(s){ return s; },
+    subKey: 'amt0',
+  },
+  {
+    key: 'amt1', label: 'YR2年申報金額',
+    dynLabel: function(py, yr1, yr2){ return yr2 + '年申報金額'; },
+    getValue: function(r){ return Math.round(r.amtAdj[1]); },
+    getStyle: function(s){ return s; },
+    subKey: 'amt1',
+  },
+  {
+    key: 'amt2', label: 'YR3年申報金額',
+    dynLabel: function(py, yr1, yr2, yr3){ return yr3 + '年申報金額'; },
+    getValue: function(r){ return Math.round(r.amtAdj[2]); },
+    getStyle: function(s){ return s; },
+    subKey: 'amt2',
+  },
+  {
+    key: 'qty0', label: 'YR1年申報量',
+    dynLabel: function(py, yr1){ return yr1 + '年申報量'; },
+    getValue: function(r){ return Math.round(r.qtyAdj[0]); },
+    getStyle: function(s){ return s; },
+    subKey: 'qty0',
+  },
+  {
+    key: 'qty1', label: 'YR2年申報量',
+    dynLabel: function(py, yr1, yr2){ return yr2 + '年申報量'; },
+    getValue: function(r){ return Math.round(r.qtyAdj[1]); },
+    getStyle: function(s){ return s; },
+    subKey: 'qty1',
+  },
+  {
+    key: 'qty2', label: 'YR3年申報量',
+    dynLabel: function(py, yr1, yr2, yr3){ return yr3 + '年申報量'; },
+    getValue: function(r){ return Math.round(r.qtyAdj[2]); },
+    getStyle: function(s){ return s; },
+    subKey: 'qty2',
+  },
+  {
+    key: 'amtRate', label: 'YR3年申報金額占率',
+    dynLabel: function(py, yr1, yr2, yr3){ return yr3 + '年申報金額占率'; },
+    getValue: function(r, d, ctx){
+      return ctx.grpAmt3[r.grp] ? fmtRate(r.amtAdj[2] / ctx.grpAmt3[r.grp]) : '';
+    },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'qtyRate', label: 'YR3年申報量占率',
+    dynLabel: function(py, yr1, yr2, yr3){ return yr3 + '年申報量占率'; },
+    getValue: function(r, d, ctx){
+      return ctx.grpQty3[r.grp] ? fmtRate(r.qtyAdj[2] / ctx.grpQty3[r.grp]) : '';
+    },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+  {
+    key: 'indication', label: '適應症', dynLabel: null,
+    getValue: function(r, d){ return txt(d['適應症']); },
+    getStyle: function(){ return XS.BODY; },
+    subKey: null,
+  },
+];
+
+var COL_STORE_KEY = 'nhia_query_cols_v1';
+var COL_DEFAULT   = COL_DEFS.map(function(c){ return c.key; }); /* 全 26 欄 */
+
+var COL_PRESETS = {
+  full:    COL_DEFAULT,
+  compact: ['grp','grpName','code','zhName','drugName','price','vendor','amt2','qty2','indication']
+};
+
+function loadColKeys(){
+  try {
+    var raw = localStorage.getItem(COL_STORE_KEY);
+    if (!raw) return COL_DEFAULT.slice();
+    var keys = JSON.parse(raw);
+    /* 過濾掉已不存在的 key（防止版本不相容） */
+    var valid = {};
+    COL_DEFS.forEach(function(c){ valid[c.key] = 1; });
+    return keys.filter(function(k){ return valid[k]; });
+  } catch(e){ return COL_DEFAULT.slice(); }
+}
+
+function saveColKeys(keys){
+  try { localStorage.setItem(COL_STORE_KEY, JSON.stringify(keys)); } catch(e){}
+}
+
 function buildQueryWorkbook(model, filters, priceYear){
   var YR1 = model.YR1, YR2 = model.YR2, YR3 = model.YR3;
   var i, j, k;
@@ -75,33 +272,7 @@ function buildQueryWorkbook(model, filters, priceYear){
     for (i=0;i<gg.rows.length;i++) grpRows.push(gg.rows[i]);
   }
 
-  /* ---------- Sheet 1：同分組項目明細 ----------
-     粒度：品項（CODE）層級，含全部品項（含 0 元）
-     欄位（22 欄）：
-       A 分組代碼  B 分組名稱  C ATC7碼  D ATC名稱  E 劑型  F CODE
-       G 中文名稱  H 藥品名稱  I 支付價  J 含量  K 含量單位
-       L 規格量  M 規格單位  N 藥商名稱
-       O YR1申報金額  P YR2申報金額  Q YR3申報金額
-       R YR1申報量    S YR2申報量    T YR3申報量
-       U YR3申報金額占率（分組內占比）  V YR3申報量占率（分組內占比）
-     排序：分組代碼↑ → 0元置後 → 申報金額↓ → CODE↑
-     標記：命中篩選條件的品項以淡藍底色標出（藥品名稱欄，H 欄，index 7）
-     小計：每個分組結束時插入灰底小計列                                    */
-  var H1 = ['分組代碼', '分組名稱', '分類分組類別', 'ATC7碼', 'ATC名稱', '劑型',
-            '藥品分類_名稱', 'CODE',
-            '中文名稱', '藥品名稱', '支付價' + priceYear, '不良品暫停支付註記',
-            '含量', '含量單位', '規格量', '規格單位', '藥商名稱',
-            YR1 + '年申報金額', YR2 + '年申報金額', YR3 + '年申報金額',
-            YR1 + '年申報量',   YR2 + '年申報量',   YR3 + '年申報量',
-            YR3 + '年申報金額占率', YR3 + '年申報量占率',
-            '適應症'];
-  var NCOL1 = H1.length;  /* 26 */
-  var ST1 = H1.map(styleForHeader);
-  ST1[0] = ST1[3] = ST1[7] = XS.BODY;              /* 分組代碼/ATC7碼/CODE 文字 */
-  ST1[11] = XS.BODY;                               /* 不良品暫停支付註記 文字 */
-  ST1[12] = ST1[13] = ST1[14] = ST1[15] = XS.BODY; /* 含量/含量單位/規格量/規格單位 文字 */
-  ST1[23] = ST1[24] = XS.BODY;                     /* 占率 格式化字串 */
-  ST1[25] = XS.BODY;                               /* 適應症 文字 */
+  /* ---------- Sheet 1：同分組項目明細 ---------- */
 
   /* 預算每個分組的 YR3 申報金額與申報量，用於計算組內占率 */
   var grpAmt3 = {}, grpQty3 = {};
@@ -110,6 +281,28 @@ function buildQueryWorkbook(model, filters, priceYear){
     grpAmt3[r_.grp] = (grpAmt3[r_.grp]||0) + r_.amtAdj[2];
     grpQty3[r_.grp] = (grpQty3[r_.grp]||0) + r_.qtyAdj[2];
   }
+
+  /* === 動態欄位 === */
+  var ctx = {priceYear:priceYear, YR1:YR1, YR2:YR2, YR3:YR3, grpAmt3:grpAmt3, grpQty3:grpQty3};
+  var colKeys = loadColKeys();
+  var activeCols = colKeys.map(function(kk){
+    var found = null;
+    for (var ci=0;ci<COL_DEFS.length;ci++){ if (COL_DEFS[ci].key===kk){ found=COL_DEFS[ci]; break; } }
+    return found;
+  }).filter(Boolean);
+  if (!activeCols.length) activeCols = COL_DEFS.slice();
+
+  /* 產生動態 H1、NCOL1、ST1 */
+  var H1 = activeCols.map(function(c){
+    return c.dynLabel ? c.dynLabel(priceYear, YR1, YR2, YR3) : c.label;
+  });
+  var NCOL1 = H1.length;
+  var ST1 = activeCols.map(function(c, ci){
+    return c.getStyle(styleForHeader(H1[ci]));
+  });
+
+  /* MARK：drugName 欄的動態 index */
+  var markIdx = colKeys.indexOf('drugName');
 
   /* 排序 */
   var wt1 = {};
@@ -142,17 +335,20 @@ function buildQueryWorkbook(model, filters, priceYear){
 
   function subtotal1(gcode, gnm){
     var row = new Array(NCOL1);
-    for (var k=0;k<NCOL1;k++) row[k] = xcell('', XS.SUB);
-    row[0] = xcell(gcode, XS.SUB);
-    row[1] = xcell(gnm,   XS.SUB);
-    row[9] = xcell('分組小計', XS.SUB);
-    row[17] = xcell(Math.round(gAmt1[0]), XS.SUBINT);
-    row[18] = xcell(Math.round(gAmt1[1]), XS.SUBINT);
-    row[19] = xcell(Math.round(gAmt1[2]), XS.SUBINT);
-    row[20] = xcell(Math.round(gQty1[0]), XS.SUBINT);
-    row[21] = xcell(Math.round(gQty1[1]), XS.SUBINT);
-    row[22] = xcell(Math.round(gQty1[2]), XS.SUBINT);
-    /* 占率欄：小計列留空（分組內總計 = 100%，無意義） */
+    for (var kk=0;kk<NCOL1;kk++) row[kk] = xcell('', XS.SUB);
+    activeCols.forEach(function(c, ci){
+      switch(c.subKey){
+        case 'grpCode':  row[ci] = xcell(gcode, XS.SUB);        break;
+        case 'grpName':  row[ci] = xcell(gnm,   XS.SUB);        break;
+        case 'drugName': row[ci] = xcell('分組小計', XS.SUB);   break;
+        case 'amt0': row[ci] = xcell(Math.round(gAmt1[0]), XS.SUBINT); break;
+        case 'amt1': row[ci] = xcell(Math.round(gAmt1[1]), XS.SUBINT); break;
+        case 'amt2': row[ci] = xcell(Math.round(gAmt1[2]), XS.SUBINT); break;
+        case 'qty0': row[ci] = xcell(Math.round(gQty1[0]), XS.SUBINT); break;
+        case 'qty1': row[ci] = xcell(Math.round(gQty1[1]), XS.SUBINT); break;
+        case 'qty2': row[ci] = xcell(Math.round(gQty1[2]), XS.SUBINT); break;
+      }
+    });
     return row;
   }
 
@@ -165,29 +361,10 @@ function buildQueryWorkbook(model, filters, priceYear){
       gAmt1 = [0,0,0]; gQty1 = [0,0,0];
     }
     cur1 = r.grp; cur1Nm = txt(d['分組名稱']);
-    var ga3 = grpAmt3[r.grp] || 0, gq3 = grpQty3[r.grp] || 0;
-    var vals1 = [
-      r.grp, txt(d['分組名稱']),
-      txt(d['分類分組類別']),                          /* 分類分組類別 */
-      atcOf(d), txt(d['ATC名稱']),
-      txt(d['劑型']),
-      txt(d['藥品分類_名稱']),                         /* 藥品分類_名稱 */
-      r.code,
-      txt(d['中文名稱']), txt(d['藥品名稱']),
-      (r.price == null ? '' : String(r.price)),  /* 字串輸出避免 numFmt 尾端小數點 */
-      txt(d['不良品暫停支付註記']),
-      txt(d['成分含量']) || txt(d['成分及含量']),
-      txt(d['含量單位']),
-      txt(d['規格量']),
-      txt(d['規格單位']),
-      txt(d['藥商名稱']),
-      Math.round(r.amtAdj[0]), Math.round(r.amtAdj[1]), Math.round(r.amtAdj[2]),
-      Math.round(r.qtyAdj[0]), Math.round(r.qtyAdj[1]), Math.round(r.qtyAdj[2]),
-      ga3 ? fmtRate(r.amtAdj[2] / ga3) : '',   /* YR3 申報金額占率 */
-      gq3 ? fmtRate(r.qtyAdj[2] / gq3) : '',  /* YR3 申報量占率 */
-      txt(d['適應症'])                           /* 適應症 */
-    ];
-    s1.push(dataRow(vals1, ST1, queryCodes[r.code] ? {9: XS.MARK} : null));
+    var vals1 = activeCols.map(function(c){ return c.getValue(r, d, ctx); });
+    var markOverride = (queryCodes[r.code] && markIdx >= 0) ? {} : null;
+    if (markOverride) markOverride[markIdx] = XS.MARK;
+    s1.push(dataRow(vals1, ST1, markOverride));
     nItems1++;
     for (j=0;j<3;j++){ gQty1[j] += r.qtyAdj[j]; gAmt1[j] += r.amtAdj[j]; tQty1[j] += r.qtyAdj[j]; tAmt1[j] += r.amtAdj[j]; }
   }
@@ -197,11 +374,17 @@ function buildQueryWorkbook(model, filters, priceYear){
   if (nItems1){
     var tot1 = new Array(NCOL1);
     for (i=0;i<NCOL1;i++) tot1[i] = xcell('', XS.SUB);
-    tot1[9]  = xcell('總計', XS.SUB);
-    tot1[17] = xcell(Math.round(tAmt1[0]), XS.SUBINT); tot1[18] = xcell(Math.round(tAmt1[1]), XS.SUBINT);
-    tot1[19] = xcell(Math.round(tAmt1[2]), XS.SUBINT);
-    tot1[20] = xcell(Math.round(tQty1[0]), XS.SUBINT); tot1[21] = xcell(Math.round(tQty1[1]), XS.SUBINT);
-    tot1[22] = xcell(Math.round(tQty1[2]), XS.SUBINT);
+    activeCols.forEach(function(c, ci){
+      switch(c.subKey){
+        case 'drugName': tot1[ci] = xcell('總計', XS.SUB);                    break;
+        case 'amt0': tot1[ci] = xcell(Math.round(tAmt1[0]), XS.SUBINT);       break;
+        case 'amt1': tot1[ci] = xcell(Math.round(tAmt1[1]), XS.SUBINT);       break;
+        case 'amt2': tot1[ci] = xcell(Math.round(tAmt1[2]), XS.SUBINT);       break;
+        case 'qty0': tot1[ci] = xcell(Math.round(tQty1[0]), XS.SUBINT);       break;
+        case 'qty1': tot1[ci] = xcell(Math.round(tQty1[1]), XS.SUBINT);       break;
+        case 'qty2': tot1[ci] = xcell(Math.round(tQty1[2]), XS.SUBINT);       break;
+      }
+    });
     s1.push(tot1);
   }
   if (!nItems1) s1.push([xcell('查無符合篩選條件的分組項目。', XS.NOTE)]);
@@ -263,7 +446,7 @@ function buildQueryWorkbook(model, filters, priceYear){
 
   function subtotal2(gcode, gnm){
     var row = new Array(NCOL2);
-    for (var k=0;k<NCOL2;k++) row[k] = xcell('', XS.SUB);
+    for (var kk=0;kk<NCOL2;kk++) row[kk] = xcell('', XS.SUB);
     row[0] = xcell(gcode, XS.SUB);
     row[1] = xcell(gnm,   XS.SUB);
     row[2] = xcell('分組小計', XS.SUB);

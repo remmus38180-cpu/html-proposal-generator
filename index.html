@@ -185,6 +185,35 @@ tr.self td{background:var(--accent-soft);font-weight:500}
   .step-n{border-right:none;border-bottom:1px solid var(--line);padding:8px 0;justify-content:flex-start;padding-left:22px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* ── 欄位選擇器 ── */
+#colPickerWrap{margin-bottom:12px}
+.col-pick-toggle{font-size:13px;padding:5px 12px;background:var(--surface-2);
+  border:1px solid var(--line-2);border-radius:6px;cursor:pointer;
+  color:var(--ink);font-family:var(--sans)}
+.col-pick-toggle:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+#colPickerPanel{margin-top:8px;background:var(--surface);
+  border:1px solid var(--line-2);border-radius:8px;padding:12px}
+.col-pick-body{display:flex;gap:12px}
+.col-pick-col{flex:1;min-width:0}
+.col-pick-head{font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:6px}
+.col-list{list-style:none;margin:0;padding:0;
+  border:1px solid var(--line);border-radius:6px;
+  min-height:120px;max-height:280px;overflow-y:auto;
+  background:var(--surface-2)}
+.col-list li{padding:5px 8px;font-size:13px;cursor:pointer;
+  display:flex;align-items:center;gap:6px;
+  border-bottom:1px solid var(--line)}
+.col-list li:last-child{border-bottom:none}
+#colSelected li{cursor:grab}
+#colSelected li:hover{background:var(--accent-soft)}
+#colSelected li.drag-over{border-top:2px solid var(--accent)}
+#colAvail li:hover{background:var(--ok-soft)}
+.col-rm{margin-left:auto;color:var(--muted);font-size:15px;line-height:1;flex-shrink:0}
+.col-rm:hover{color:var(--bad)}
+.col-pick-foot{margin-top:10px;display:flex;gap:8px;align-items:center;
+  padding-top:10px;border-top:1px solid var(--line)}
+.col-pick-foot select,.col-pick-foot button{font-size:13px;padding:4px 10px}
 </style>
 </head>
 <body>
@@ -309,6 +338,32 @@ tr.self td{background:var(--accent-soft);font-weight:500}
     <div class="step-n">05</div>
     <div class="step-body">
       <h2>產出查詢表 <small>路徑 A ·  3 個工作表</small></h2>
+      <div id="colPickerWrap">
+        <button id="btnColPicker" type="button" class="col-pick-toggle">
+          📋 自訂欄位 <span id="colPickerBadge">26 欄</span> ▾
+        </button>
+        <div id="colPickerPanel" hidden>
+          <div class="col-pick-body">
+            <div class="col-pick-col">
+              <div class="col-pick-head">已選（可拖曳排序）</div>
+              <ul id="colSelected" class="col-list"></ul>
+            </div>
+            <div class="col-pick-col">
+              <div class="col-pick-head">未選（點擊加入）</div>
+              <ul id="colAvail" class="col-list"></ul>
+            </div>
+          </div>
+          <div class="col-pick-foot">
+            <select id="colPreset">
+              <option value="">套用預設組…</option>
+              <option value="full">完整版（26 欄）</option>
+              <option value="compact">精簡版（10 欄）</option>
+            </select>
+            <button type="button" id="btnColReset">重設</button>
+            <button type="button" id="btnColClose">收合</button>
+          </div>
+        </div>
+      </div>
       <div class="btn-row">
         <button id="btnQuery" class="primary" type="button" disabled>下載藥品背景查詢表</button>
       </div>

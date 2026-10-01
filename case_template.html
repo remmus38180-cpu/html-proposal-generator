@@ -359,7 +359,7 @@ code{font-family:var(--mono);color:var(--accent-deep);background:var(--accent-so
       </div>
       <span class="hint">輸出不含 PRICE、廠商建議價、十國中位價、廠商成本、調高後支付價與財務衝擊；
         保留分組層彙總（支付價區間、項目數、近三年平均申報量）。<br>
-        <b>同值合併</b>：於「自訂欄位」逐欄勾選，連續相同值（同分組內）合併為一格；分頁2 的分組代碼／分組名稱沿用分頁1 的勾選。</span>
+        <b>同值合併</b>：於「自訂欄位」逐欄勾選，連續相同值（同分組內）合併為一格；依表頭文字比對，分頁2 的同名欄位一併套用，並與路徑 B 的四分頁報表／提案附件共用。</span>
     </div>
   </section>
 
@@ -379,6 +379,12 @@ code{font-family:var(--mono);color:var(--accent-deep);background:var(--accent-so
           <label class="chk"><input type="checkbox" id="atcL7" checked>ATC7碼</label>
         </div>
         <span class="hint">碼數愈少範圍愈大。<b>ATC前1碼</b>等於整個 ATC 大分類，常達數千項目，預設不勾。</span>
+      </div>
+
+      <div class="field" style="margin-bottom:14px">
+        <label>Excel 同值合併列印（四分頁報表、提案附件適用）</label>
+        <div class="chk-row" id="mergeChoicesB"></div>
+        <span class="hint">勾選的欄位：同分組內連續相同值合併為一格；不勾＝每列均產製。與路徑 A 查詢表共用同一份選擇。含自動篩選的分頁，合併欄篩選時僅首列有值。</span>
       </div>
 
       <div class="btn-row">
@@ -1617,13 +1623,14 @@ function buildSasWorkbook(model, filters, targets, priceYear, opt){
     if (za !== zb) return za - zb;
     return a < b ? -1 : (a > b ? 1 : 0);
   });
-  var s2 = [headRow(S2H)];
+  var s2 = [headRow(S2H)], dIdx2 = [];
   var SUBST = S2H.map(function(h){ return styleForHeader(h) === XS.BODY ? XS.SUB : XS.SUBINT; });
   for (i=0;i<grpOrder.length;i++){
     var list = byGrp[grpOrder[i]].slice().sort(function(a,b){ return a.atc < b.atc ? -1 : 1; });
     var all = [];
     for (j=0;j<list.length;j++){
       s2.push(dataRow(statVals(list[j].atc, list[j].rows, grpOrder[i]), ST2));
+      dIdx2.push(s2.length - 1);
       all = all.concat(list[j].rows);
     }
     if (list.length > 1) s2.push(dataRow(statVals('分組小計', all, grpOrder[i]), SUBST));
@@ -1678,12 +1685,16 @@ function buildSasWorkbook(model, filters, targets, priceYear, opt){
   ST3[12] = ST3[16] = XS.BODY;                          /* 占率是文字 */
   ST4[13] = ST4[17] = XS.BODY;
 
-  var s3 = [headRow(H3)], s4 = [headRow(H4)];
+  var s3 = [headRow(H3)], s4 = [headRow(H4)], dIdx3 = [], dIdx4 = [];
   for (i=0;i<det.length;i++){
     var mk = targetCodes[det[i].code] ? {5: XS.MARK} : null;
-    if (isCounted(det[i])) s3.push(dataRow(detVals(det[i], false), ST3, mk));
-    s4.push(dataRow(detVals(det[i], true), ST4, mk));
+    if (isCounted(det[i])){ s3.push(dataRow(detVals(det[i], false), ST3, mk)); dIdx3.push(s3.length - 1); }
+    s4.push(dataRow(detVals(det[i], true), ST4, mk)); dIdx4.push(s4.length - 1);
   }
+  /* 使用者選擇「同值合併」的欄位（表頭文字比對） */
+  var mm2 = applySpanRows(s2, dIdx2, mergeColsByHeader(S2H));
+  var mm3 = applySpanRows(s3, dIdx3, mergeColsByHeader(H3));
+  var mm4 = applySpanRows(s4, dIdx4, mergeColsByHeader(H4));
 
   function lastRef(aoa, headers){ return 'A1:' + xlColName(headers.length-1) + aoa.length; }
 
@@ -1691,9 +1702,9 @@ function buildSasWorkbook(model, filters, targets, priceYear, opt){
   if (!skipPriceCalc)
     sheets.push({name:'1.藥價核定試算',  aoa:s1, cols:cols1, rowHeights:rh1, merges:m1, rowHeight:20});
   var n = skipPriceCalc ? 0 : 1;
-  sheets.push({name:(n+1)+'.總覽篩選_分組統計',       aoa:s2, freeze:1, autoFilter:lastRef(s2,S2H), rowHeights:{0:34}, rowHeight:20});
-  sheets.push({name:(n+2)+'.總覽篩選_項目明細',       aoa:s3, freeze:1, autoFilter:lastRef(s3,H3),  rowHeights:{0:34}, rowHeight:20});
-  sheets.push({name:(n+3)+'.總覽篩選_項目明細(含0元)', aoa:s4, freeze:1, autoFilter:lastRef(s4,H4),  rowHeights:{0:34}, rowHeight:20});
+  sheets.push({name:(n+1)+'.總覽篩選_分組統計',       aoa:s2, freeze:1, autoFilter:lastRef(s2,S2H), rowHeights:{0:34}, rowHeight:20, merges:mm2});
+  sheets.push({name:(n+2)+'.總覽篩選_項目明細',       aoa:s3, freeze:1, autoFilter:lastRef(s3,H3),  rowHeights:{0:34}, rowHeight:20, merges:mm3});
+  sheets.push({name:(n+3)+'.總覽篩選_項目明細(含0元)', aoa:s4, freeze:1, autoFilter:lastRef(s4,H4),  rowHeights:{0:34}, rowHeight:20, merges:mm4});
 
   return {
     book: buildXlsxBook(sheets),
@@ -1940,9 +1951,11 @@ function loadColKeys(){
 }
 
 /* ── 同值合併列印（spanrows）：每欄可獨立選擇「同值合併」或「每列均產製」 ── */
-var MERGE_STORE_KEY = 'nhia_query_merge_v1';
-var MERGE_DEFAULT = ['grp','grpName'];
-function loadMergeKeys(){
+var MERGE_STORE_KEY = 'nhia_merge_labels_v2';
+var MERGE_DEFAULT = ['分組代碼','分組名稱'];
+/* 可選合併的欄位（以表頭文字比對，所有 Excel 輸出共用同一份選擇） */
+var MERGE_CHOICES = ['分組代碼','分組名稱','分類分組類別','調劑大類','ATC7碼','ATC名稱','[ATC代碼] ATC名稱','劑型','藥品分類_名稱','必要藥品','藥商名稱'];
+function loadMergeLabels(){
   try {
     var raw = localStorage.getItem(MERGE_STORE_KEY);
     if (raw === null) return MERGE_DEFAULT.slice();
@@ -1950,8 +1963,14 @@ function loadMergeKeys(){
     return Array.isArray(a) ? a : MERGE_DEFAULT.slice();
   } catch(e){ return MERGE_DEFAULT.slice(); }
 }
-function saveMergeKeys(keys){
-  try { localStorage.setItem(MERGE_STORE_KEY, JSON.stringify(keys)); } catch(e){}
+function saveMergeLabels(a){
+  try { localStorage.setItem(MERGE_STORE_KEY, JSON.stringify(a)); } catch(e){}
+}
+/* 依表頭取出要合併的欄索引 */
+function mergeColsByHeader(headers){
+  var sel = loadMergeLabels(), out = [];
+  for (var i=0;i<headers.length;i++) if (sel.indexOf(headers[i]) >= 0) out.push(i);
+  return out;
 }
 /* 對 aoa 內「資料列」產生縱向合併。
    dataRows：資料列在 aoa 的索引（遞增）；小計／總計列不在其中，自然切斷合併區段。
@@ -2143,10 +2162,7 @@ function buildQueryWorkbook(model, filters, priceYear){
   }
   if (!nItems1) s1.push([xcell('查無符合篩選條件的分組項目。', XS.NOTE)]);
   /* 使用者選擇「同值合併」的欄位 → 縱向合併儲存格 */
-  var mergeKeys = loadMergeKeys();
-  var mergeCols1 = [];
-  colKeys.forEach(function(kk, ci){ if (mergeKeys.indexOf(kk) >= 0) mergeCols1.push(ci); });
-  var m1 = applySpanRows(s1, dataIdx1, mergeCols1);
+  var m1 = applySpanRows(s1, dataIdx1, mergeColsByHeader(activeCols.map(function(c){ return c.label; })));
   s1 = s1.concat(footRows());
 
   /* ---------- Sheet 2：分組與 ATC 彙總 ----------
@@ -2248,11 +2264,7 @@ function buildQueryWorkbook(model, filters, priceYear){
   }
   if (cur2 !== null && grpAtcCount[cur2] > 1) s2.push(subtotal2(cur2, cur2Nm));
   if (!nRows2) s2.push([xcell('查無符合篩選條件的分組。', XS.NOTE)]);
-  /* 分頁2：分組代碼(A)、分組名稱(B) 沿用分頁1 的合併選擇 */
-  var mergeCols2 = [];
-  if (mergeKeys.indexOf('grp') >= 0) mergeCols2.push(0);
-  if (mergeKeys.indexOf('grpName') >= 0) mergeCols2.push(1);
-  var m2 = applySpanRows(s2, dataIdx2, mergeCols2);
+  var m2 = applySpanRows(s2, dataIdx2, mergeColsByHeader(H2));
   s2 = s2.concat(footRows());
 
   return {
@@ -3276,7 +3288,7 @@ function attachSheet(name, title, scopeRows, model, priceYear, caseCodes, fixedR
          + '※支付價欄位為 ' + pyLabel(priceYear) + ' 健保支付價', XS.NOTE)],
     H.map(function(h){ return xcell(h, XS.HEAD); })
   ];
-  var seq = 0, gAmt = [0,0,0], gQty = [0,0,0], cur = null, buf = [];
+  var seq = 0, gAmt = [0,0,0], gQty = [0,0,0], cur = null, buf = [], dIdxA = [];
 
   /* 分組小計＝「本分頁納入範圍內」該分組的全部項目加總（含依列出規則未印出者）。
      同分組分頁的範圍就是整組，因此其小計＝Word 表二的「整組申報金額／申報量」。
@@ -3303,7 +3315,7 @@ function attachSheet(name, title, scopeRows, model, priceYear, caseCodes, fixedR
     if (!buf.length) return;                       /* (a) 一列都沒印出 → 連小計都不出現 */
     for (var k=0;k<buf.length;k++){
       buf[k][1] = xcell(++seq, buf[k][1] && buf[k][1].s !== undefined ? buf[k][1].s : XS.BODY);
-      aoa.push(buf[k]);
+      aoa.push(buf[k]); dIdxA.push(aoa.length - 1);
     }
     if (cur) aoa.push(subtotalRow(cur));            /* (b) 分組代碼留白 → 不印小計 */
     buf = [];
@@ -3331,6 +3343,7 @@ function attachSheet(name, title, scopeRows, model, priceYear, caseCodes, fixedR
     buf.push(dataRow(vals, ST, caseCodes[r.code] ? {6: XS.MARK} : null));
   }
   flush();
+  var mmA = applySpanRows(aoa, dIdxA, mergeColsByHeader(H));
 
   var last = xlColName(NCOL-1);
   var rh = {0:26, 2:34};
@@ -3339,7 +3352,7 @@ function attachSheet(name, title, scopeRows, model, priceYear, caseCodes, fixedR
     name: name, aoa: aoa,
     cols: [11, 6, 10, 20, 13, 18, 28, 10, 13, 9, 30, 12, 38, 18, 11, 13, 11, 13, 11, 13],
     freeze: 3, rowHeights: rh, rowHeight: 20,
-    merges: ['B1:' + last + '1', 'B2:' + last + '2'],
+    merges: ['B1:' + last + '1', 'B2:' + last + '2'].concat(mmA),
     landscape: true, fitToPage: true,
     printArea: '$B$1:$' + last + '$' + aoa.length,   /* 不含 A 欄分組代碼 */
     printTitles: '$1:$3',
@@ -4136,6 +4149,23 @@ function bindPathBHandlers(){
 
 refresh();
 
+/* ── 同值合併面板（路徑 B） ── */
+(function initMergePanel(){
+  var box = $('mergeChoicesB');
+  if (!box) return;
+  var cur = loadMergeLabels();
+  MERGE_CHOICES.forEach(function(lb){
+    var l = document.createElement('label'); l.className = 'chk';
+    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = cur.indexOf(lb) >= 0;
+    cb.addEventListener('change', function(){
+      var a = loadMergeLabels().filter(function(x){ return x !== lb; });
+      if (cb.checked) a.push(lb);
+      saveMergeLabels(a);
+    });
+    l.appendChild(cb); l.appendChild(document.createTextNode(lb)); box.appendChild(l);
+  });
+})();
+
 /* ── 欄位選擇器面板初始化 ── */
 (function initColPicker(){
   var panel  = $('colPickerPanel');
@@ -4163,18 +4193,18 @@ refresh();
       li.dataset.key = k;
       li.setAttribute('draggable', 'true');
       li.textContent = '☰ ' + c.label;
-      var mkeys = loadMergeKeys();
+      var mkeys = loadMergeLabels();
       var mg = document.createElement('label');
-      mg.className = 'col-mg' + (mkeys.indexOf(k) >= 0 ? ' on' : '');
+      mg.className = 'col-mg' + (mkeys.indexOf(c.label) >= 0 ? ' on' : '');
       mg.title = '勾選＝同值合併列印（縱向合併儲存格）；不勾＝每列均產製';
       mg.addEventListener('click', function(e){ e.stopPropagation(); });
       mg.setAttribute('draggable', 'false');
       var mcb = document.createElement('input');
-      mcb.type = 'checkbox'; mcb.checked = mkeys.indexOf(k) >= 0;
+      mcb.type = 'checkbox'; mcb.checked = mkeys.indexOf(c.label) >= 0;
       mcb.addEventListener('change', function(){
-        var cur = loadMergeKeys().filter(function(x){ return x !== k; });
-        if (mcb.checked) cur.push(k);
-        saveMergeKeys(cur);
+        var cur = loadMergeLabels().filter(function(x){ return x !== c.label; });
+        if (mcb.checked) cur.push(c.label);
+        saveMergeLabels(cur);
         mg.classList.toggle('on', mcb.checked);
       });
       mg.appendChild(mcb); mg.appendChild(document.createTextNode('合併'));

@@ -16,7 +16,7 @@
 
 | 檔案 | 說明 |
 |---|---|
-| `case_template.html` | 主工具。**用瀏覽器直接開本機檔**（線上 Artifact 版被沙箱擋下載） |
+| `case_template_v20261001024914.html` | 主工具（檔名格式 `case_template_v年月日時分秒.html`，每次改版換新時間戳）。**用瀏覽器直接開本機檔**（線上 Artifact 版被沙箱擋下載） |
 | `claude.md` | 本文件 |
 | `修正說明_請更換檔案.md` | 給同仁的修正通知（舊版已發布後補發） |
 | `資料邏輯說明.html` | 說明頁的單一 HTML 檔（與線上 Artifact 同內容，可離線開啟；字型改用系統預設） |
@@ -655,7 +655,7 @@ soffice --headless --convert-to pdf out.docx --outdir conv && pdftoppm -png -r 7
 
 ### 8.3 環境限制
 - **裝置橋接常斷線**，檔案多半得從對話下載後手動覆蓋
-- 線上 Artifact 版**沙箱會擋下載**（除非 `downloads` 能力可用），真正給同仁用的是本機 `case_template.html`
+- 線上 Artifact 版**沙箱會擋下載**（除非 `downloads` 能力可用），真正給同仁用的是本機 `case_template_v*.html`（最新時間戳者）
 
 ---
 
